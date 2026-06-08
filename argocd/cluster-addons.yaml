@@ -1,9 +1,19 @@
-# cluster-addons ApplicationSet — the in-cluster dependencies of Bud Foundry.
+# cluster-addons ApplicationSet — the required in-cluster dependencies of Bud Foundry.
 #
-# Deploys dapr, cert-manager, openebs, postgres, clickhouse, kafka, mongodb,
-# valkey, seaweedfs, otel and signoz from the OCI chart registry. Each Application
-# pulls its chart from registry.bud.studio/charts and its config from THIS repo
-# via the $values reference (see the second source below).
+# Deploys dapr, cert-manager, postgres, clickhouse, kafka, mongodb, valkey and
+# seaweedfs from the OCI chart registry. Each Application pulls its chart from
+# registry.bud.studio/charts and its config from THIS repo via the $values
+# reference (see the second source below).
+#
+# OPTIONAL add-ons (storage provisioning, observability) are NOT included here —
+# they depend on your cluster and needs. See the Installation Guide:
+# https://docs.budecosystem.com/developer-docs/installation
+#   - openebs : only if your cluster has no StorageClass (e.g. bare metal).
+#               Managed clusters already provide one — skip it.
+#   - otel    : OpenTelemetry operator + node collector for cluster/infra metrics.
+#               The platform ships its OWN app-telemetry collector, so this is
+#               only for infra-level observability.
+#   - signoz  : observability dashboards UI. Nothing depends on it.
 #
 # BEFORE APPLYING:
 #   1. Fork this repo (or copy it into your own git repo).
@@ -24,8 +34,6 @@ spec:
             namespace: dapr-system
           - name: cert-manager
             namespace: cert-manager
-          - name: openebs
-            namespace: openebs
           - name: postgres
             namespace: postgres
           - name: clickhouse
@@ -38,10 +46,6 @@ spec:
             namespace: valkey
           - name: seaweedfs
             namespace: seaweedfs
-          - name: otel
-            namespace: otel
-          - name: signoz
-            namespace: signoz
   template:
     metadata:
       name: "{{.name}}"
