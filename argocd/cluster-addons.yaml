@@ -1,0 +1,74 @@
+# cluster-addons ApplicationSet — the in-cluster dependencies of Bud Foundry.
+#
+# Deploys dapr, cert-manager, openebs, postgres, clickhouse, kafka, mongodb,
+# valkey, seaweedfs, otel and signoz from the OCI chart registry. Each Application
+# pulls its chart from registry.bud.studio/charts and its config from THIS repo
+# via the $values reference (see the second source below).
+#
+# BEFORE APPLYING:
+#   1. Fork this repo (or copy it into your own git repo).
+#   2. Set `repoURL` on the `ref: values` source to YOUR fork's URL.
+#   3. Fill in argocd/bud/values.yaml etc. with your settings.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-addons
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - name: dapr
+            namespace: dapr-system
+          - name: cert-manager
+            namespace: cert-manager
+          - name: openebs
+            namespace: openebs
+          - name: postgres
+            namespace: postgres
+          - name: clickhouse
+            namespace: clickhouse
+          - name: kafka
+            namespace: kafka
+          - name: mongodb
+            namespace: mongodb
+          - name: valkey
+            namespace: valkey
+          - name: seaweedfs
+            namespace: seaweedfs
+          - name: otel
+            namespace: otel
+          - name: signoz
+            namespace: signoz
+  template:
+    metadata:
+      name: "{{.name}}"
+    spec:
+      project: default
+      sources:
+        # 1) The chart, pulled from the OCI registry (no source-repo access needed).
+        - repoURL: registry.bud.studio/charts
+          chart: "{{.name}}"
+          targetRevision: "0.1.0" # dependency charts are versioned at 0.1.0
+          helm:
+            releaseName: "{{.name}}"
+            # $values resolves to the ROOT of the ref source below, so the path
+            # includes the `argocd/` folder these files live in.
+            valueFiles:
+              - "$values/argocd/{{.name}}/values.yaml"
+            ignoreMissingValueFiles: true # most addons need no override
+        # 2) This config repo. POINT repoURL AT YOUR FORK.
+        - repoURL: https://github.com/BudEcosystem/example-bud-foundry-config
+          targetRevision: main
+          ref: values
+      destination:
+        server: "https://kubernetes.default.svc"
+        namespace: "{{.namespace}}"
+      syncPolicy:
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+        automated:
+          selfHeal: true

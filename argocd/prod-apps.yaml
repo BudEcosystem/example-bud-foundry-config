@@ -1,0 +1,52 @@
+# prod-apps ApplicationSet — Keycloak (OIDC) + the Bud Foundry platform itself.
+#
+# Runs in a later sync-wave so the cluster-addons (databases, etc.) are present
+# first. Same multi-source pattern as cluster-addons.yaml: chart from the OCI
+# registry, config from this repo via $values.
+#
+# BEFORE APPLYING: point the `ref: values` repoURL at YOUR fork and fill in
+# argocd/bud/values.yaml + argocd/bud/secrets.yaml (copy from secrets.example.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: prod-apps
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - name: keycloak
+            version: "0.1.0"
+          - name: bud
+            version: "0.14.0"
+  template:
+    metadata:
+      name: "{{.name}}"
+      annotations:
+        argocd.argoproj.io/sync-wave: "10" # apply after the addons
+    spec:
+      project: default
+      destination:
+        server: "https://kubernetes.default.svc"
+        namespace: "{{.name}}"
+      sources:
+        - repoURL: registry.bud.studio/charts
+          chart: "{{.name}}"
+          targetRevision: "{{.version}}"
+          helm:
+            releaseName: "{{.name}}"
+            valueFiles:
+              - "$values/argocd/{{.name}}/values.yaml"
+              - "$values/argocd/{{.name}}/secrets.yaml" # not in this public repo — supply in your fork
+            ignoreMissingValueFiles: true
+        - repoURL: https://github.com/BudEcosystem/example-bud-foundry-config
+          targetRevision: main
+          ref: values
+      syncPolicy:
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+        automated:
+          selfHeal: true

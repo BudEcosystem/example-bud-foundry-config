@@ -1,0 +1,7 @@
+# Never commit real secrets. Only secrets.example.yaml (placeholders) is tracked.
+secrets.yaml
+**/secrets.yaml
+*.secret.yaml
+secrets.enc.yaml
+*.agekey
+*.pem

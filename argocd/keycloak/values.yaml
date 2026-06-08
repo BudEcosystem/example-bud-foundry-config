@@ -1,0 +1,8 @@
+# Non-secret configuration for the bundled Keycloak (OIDC provider).
+# Leave empty to use chart defaults, or override as needed. If you already run
+# your own OIDC IdP (Auth0, Okta, Azure AD, ...), you can remove the `keycloak`
+# element from prod-apps.yaml and point externalServices.keycloak.* at it instead.
+
+# Example overrides (uncomment + edit as needed):
+# ingress:
+#   className: "traefik"

@@ -1,0 +1,36 @@
+# Non-secret configuration for the `bud` platform chart.
+# This is the whole file you hand-edit. Everything not set here falls back to
+# the chart's built-in defaults — including the in-cluster database hosts
+# (pooler-rw.postgres, clickhouse-clickhouse.clickhouse, mongodb-rs0.mongodb,
+# valkey-master.valkey), which you should NOT override when using cluster-addons.
+
+global:
+  ingress:
+    hosts:
+      # Set ONLY this. budadmin/budapp/budgateway/... hostnames are derived from
+      # root by the chart helpers. Override individual ones only if you must.
+      root: "bud.example.com"
+
+ingress:
+  enabled: true
+  https: external # external | internal | disabled
+  className: "traefik" # your cluster's ingress class
+  # cert-manager ClusterIssuer that signs the *-acme-cert secrets the chart
+  # references (cert-manager is installed by cluster-addons).
+  clusterIssuer: "letsencrypt-prod"
+
+# Storage classes are cluster-specific and have NO safe default — set them.
+storage:
+  budmodelRegistry:
+    className: "" # MUST match a StorageClass in your cluster (e.g. "managed-csi")
+    size: 300Gi # bump for larger models (chart note: ~1Ti for >20B params)
+  budmodelAddDir:
+    className: ""
+  budevalDataset:
+    className: ""
+  budappStaticDir:
+    className: ""
+# Optional: pin replica counts / HPA bounds to your capacity.
+# microservices:
+#   budapp:
+#     autoscaling: { minReplicas: 2, maxReplicas: 6 }
