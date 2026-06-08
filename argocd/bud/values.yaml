@@ -8,8 +8,12 @@ global:
   ingress:
     hosts:
       # Set ONLY this. budadmin/budapp/budgateway/... hostnames are derived from
-      # root by the chart helpers. Override individual ones only if you must.
-      root: "bud.example.com"
+      # root by the chart helpers (admin.<root>, gateway.<root>, app.<root>, ...).
+      # Temporary test domain; a *.deploy-test.bud.studio wildcard cert covers the
+      # single-level sub-hosts. NOTE: novu uses two-level hosts (api.novu.<root>,
+      # ws.novu.<root>) which a single-level wildcard does NOT cover — set
+      # global.ingress.hosts.novuapi / novuws explicitly if you need TLS on those.
+      root: "deploy-test.bud.studio"
 
 ingress:
   enabled: true
