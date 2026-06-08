@@ -59,10 +59,14 @@ spec:
           helm:
             releaseName: "{{.name}}"
             # $values resolves to the ROOT of the ref source below, so the path
-            # includes the `argocd/` folder these files live in.
+            # includes the `argocd/` folder these files live in. secrets.yaml is
+            # produced by scripts/gen-secrets.sh for the stateful addons
+            # (postgres/clickhouse/kafka/mongodb/valkey); addons without one
+            # (dapr, cert-manager) skip it via ignoreMissingValueFiles.
             valueFiles:
               - "$values/argocd/{{.name}}/values.yaml"
-            ignoreMissingValueFiles: true # most addons need no override
+              - "$values/argocd/{{.name}}/secrets.yaml"
+            ignoreMissingValueFiles: true
         # 2) This config repo. POINT repoURL AT YOUR FORK.
         - repoURL: https://github.com/BudEcosystem/example-bud-foundry-config
           targetRevision: main

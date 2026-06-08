@@ -48,14 +48,33 @@ sync will silently fall back to chart defaults
    `ref: values` source's `repoURL` to **your fork's URL**.
 3. Edit `argocd/bud/values.yaml` — at minimum `global.ingress.hosts.root` and
    the `storage.*.className` values.
-4. Create your secrets:
+4. Generate your secrets (recommended) — one command produces a **coordinated**
+   set across the bud chart and the stateful addons:
+   ```bash
+   scripts/gen-secrets.sh \
+     --registry-user 'robot$yourname' \
+     --registry-token '<token-from-bud>' \
+     --admin-email you@yourco.com
+   ```
+   This writes `argocd/bud/secrets.yaml` plus `argocd/<addon>/secrets.yaml` for
+   postgres/clickhouse/kafka/mongodb/valkey, with matching passwords (the addons
+   *create* the DB users; the bud chart *connects* with the same passwords — a
+   mismatch breaks the install). All outputs are gitignored. Re-run with
+   `--force` to regenerate everything together; never hand-edit one file in
+   isolation. Registry credentials are issued by Bud, so you pass them in rather
+   than generate them.
+
+   <details><summary>Or fill the template by hand</summary>
+
    ```bash
    cp argocd/bud/secrets.example.yaml argocd/bud/secrets.yaml
-   # replace every GENERATED_* placeholder; commit to your PRIVATE fork
+   # replace every GENERATED_* placeholder, and create matching argocd/<addon>/secrets.yaml
    ```
-   `secrets.yaml` is gitignored here so real secrets never land in this public
-   repo. For stronger protection, encrypt it with SOPS and enable the
-   helm-secrets plugin in your ArgoCD (optional).
+   </details>
+
+   `secrets.yaml` is gitignored so real secrets never land in this public repo.
+   For stronger protection, encrypt them with SOPS and enable the helm-secrets
+   plugin in your ArgoCD (optional).
 5. Register the OCI registry credential and apply the ApplicationSets — see the
    full walkthrough in the
    [Installation Guide](https://docs.budecosystem.com/developer-docs/installation).
