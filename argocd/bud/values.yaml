@@ -26,14 +26,14 @@ ingress:
 # Storage classes are cluster-specific and have NO safe default — set them.
 storage:
   budmodelRegistry:
-    className: "" # MUST match a StorageClass in your cluster (e.g. "managed-csi")
+    className: "local-path" # MUST match a StorageClass in your cluster (e.g. "managed-csi")
     size: 300Gi # bump for larger models (chart note: ~1Ti for >20B params)
   budmodelAddDir:
-    className: ""
+    className: "local-path"
   budevalDataset:
-    className: ""
+    className: "local-path"
   budappStaticDir:
-    className: ""
+    className: "local-path"
 # Optional: pin replica counts / HPA bounds to your capacity.
 # microservices:
 #   budapp:
