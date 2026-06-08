@@ -57,12 +57,25 @@ sync will silently fall back to chart defaults
      --admin-email you@yourco.com
    ```
    This writes `argocd/bud/secrets.yaml` plus `argocd/<addon>/secrets.yaml` for
-   postgres/clickhouse/kafka/mongodb/valkey, with matching passwords (the addons
-   *create* the DB users; the bud chart *connects* with the same passwords — a
-   mismatch breaks the install). All outputs are gitignored. Re-run with
-   `--force` to regenerate everything together; never hand-edit one file in
-   isolation. Registry credentials are issued by Bud, so you pass them in rather
-   than generate them.
+   postgres/clickhouse/kafka/mongodb/valkey/seaweedfs, with matching passwords
+   (the addons *create* the DB users; the bud chart *connects* with the same
+   passwords — a mismatch breaks the install). The script then **renders the bud
+   chart to verify the generated secrets are complete**. Re-run with `--force` to
+   regenerate everything together; never hand-edit one file in isolation.
+   Registry credentials are issued by Bud, so you pass them in rather than
+   generate them.
+
+   **Then commit them to your fork — this step is required.** ArgoCD delivers
+   config over **git**, but `secrets.yaml` is gitignored (so it never lands in
+   the public example). In your fork you must force-add them, or the bud
+   Application renders with `values.yaml` only and fails with a nil-pointer:
+   ```bash
+   git add -f argocd/*/secrets.yaml
+   git commit -m "add generated secrets" && git push
+   ```
+   After pushing, **hard-refresh** the ArgoCD apps (manifest errors are cached).
+   Keep your fork **private**. For stronger protection, SOPS-encrypt instead and
+   enable the helm-secrets plugin in your ArgoCD.
 
    <details><summary>Or fill the template by hand</summary>
 
@@ -71,10 +84,6 @@ sync will silently fall back to chart defaults
    # replace every GENERATED_* placeholder, and create matching argocd/<addon>/secrets.yaml
    ```
    </details>
-
-   `secrets.yaml` is gitignored so real secrets never land in this public repo.
-   For stronger protection, encrypt them with SOPS and enable the helm-secrets
-   plugin in your ArgoCD (optional).
 5. Register the OCI registry credential and apply the ApplicationSets — see the
    full walkthrough in the
    [Installation Guide](https://docs.budecosystem.com/developer-docs/installation).

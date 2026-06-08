@@ -1,232 +1,286 @@
 #!/usr/bin/env bash
 #
-# gen-secrets.sh — generate a coordinated set of secrets for a Bud Foundry install.
+# gen-secrets.sh — generate a COMPLETE, coordinated secret set for a Bud Foundry install.
 #
-# Writes matching passwords into BOTH the bud chart's secrets file AND the
-# stateful addon configs, because the databases run in-cluster: the postgres /
-# clickhouse / kafka / mongodb / valkey addons CREATE their users from their own
-# values, and the bud chart CONNECTS using the same passwords. A mismatch =
-# backend pods that can't connect. This script keeps them in sync from one run.
+# Writes matching values into the bud chart secrets AND the stateful addon
+# configs. The addons (postgres/clickhouse/kafka/mongodb/valkey/seaweedfs) CREATE
+# their users from their own values; the bud chart CONNECTS with the same
+# passwords. A mismatch = pods that can't connect. This keeps them in sync.
 #
-# Outputs (all gitignored / .secret.yaml so they never reach a public repo):
+# The bud key set is anchored to the chart's own example.secrets.yaml at the
+# pinned version, and the script renders the chart at the end to PROVE the
+# generated file is complete (catches drift when the chart adds keys).
+#
+# Outputs (gitignored in the PUBLIC example; you MUST git add -f them in your
+# PRIVATE fork — ArgoCD delivers config via git, see the note printed at the end):
 #   argocd/bud/secrets.yaml
-#   argocd/postgres/secrets.yaml
-#   argocd/clickhouse/secrets.yaml
-#   argocd/kafka/secrets.yaml
-#   argocd/mongodb/secrets.yaml
-#   argocd/valkey/secrets.yaml
+#   argocd/{postgres,clickhouse,kafka,mongodb,valkey,seaweedfs}/secrets.yaml
 #
-# Registry credentials are ISSUED by Bud, not generated — pass them in.
+# Registry creds + external API keys (HF_TOKEN, OPENAI_API_KEY) are NOT generated.
 #
 # Usage:
-#   scripts/gen-secrets.sh \
-#     --registry-user 'robot$yourname' \
-#     --registry-token '<token>' \
-#     [--admin-email admin@yourco.com] \
-#     [--force]
+#   scripts/gen-secrets.sh --registry-user 'robot$you' --registry-token '<tok>' \
+#     [--admin-email you@co.com] [--hf-token <tok>] [--openai-key <key>] \
+#     [--chart-version 0.14.0] [--no-verify] [--force]
 #
-# Requires: bash, openssl. (tr/sed/awk from coreutils.)
+# Requires: bash, openssl, helm (for the completeness render-test).
 
 set -euo pipefail
 
-# ---- args -------------------------------------------------------------------
-REGISTRY_USER=""
-REGISTRY_TOKEN=""
-ADMIN_EMAIL="admin@example.com"
-FORCE=0
+REGISTRY_USER="" REGISTRY_TOKEN="" ADMIN_EMAIL="admin@example.com"
+HF_TOKEN="<change_me>" OPENAI_KEY="<change_me>"
+CHART_VERSION="0.14.0" VERIFY=1 FORCE=0
+REGISTRY="registry.bud.studio"
 
-usage() { sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
-
+usage() { sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 while [ $# -gt 0 ]; do
   case "$1" in
     --registry-user)  REGISTRY_USER="${2:-}"; shift 2 ;;
     --registry-token) REGISTRY_TOKEN="${2:-}"; shift 2 ;;
     --admin-email)    ADMIN_EMAIL="${2:-}"; shift 2 ;;
+    --hf-token)       HF_TOKEN="${2:-}"; shift 2 ;;
+    --openai-key)     OPENAI_KEY="${2:-}"; shift 2 ;;
+    --chart-version)  CHART_VERSION="${2:-}"; shift 2 ;;
+    --no-verify)      VERIFY=0; shift ;;
     --force)          FORCE=1; shift ;;
     -h|--help)        usage 0 ;;
     *) echo "unknown arg: $1" >&2; usage 1 ;;
   esac
 done
+[ -n "$REGISTRY_USER" ] && [ -n "$REGISTRY_TOKEN" ] || {
+  echo "ERROR: --registry-user and --registry-token are required (issued by Bud)." >&2; usage 1; }
 
-if [ -z "$REGISTRY_USER" ] || [ -z "$REGISTRY_TOKEN" ]; then
-  echo "ERROR: --registry-user and --registry-token are required (issued by Bud, not generated)." >&2
-  usage 1
-fi
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT"
 
-# Run from the repo root regardless of where it's invoked.
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
+# ---- generators (SIGPIPE-safe; no `</dev/urandom | head`) --------------------
+gen() { local n="${1:-32}"; LC_ALL=C openssl rand -base64 $((n*2+16)) | LC_ALL=C tr -dc 'A-Za-z0-9' | cut -c "1-${n}"; }
+gen_hex() { openssl rand -hex "${1:-44}"; }   # AES_KEY_HEX: 88 hex chars per chart example
 
-# ---- generators -------------------------------------------------------------
-# Alphanumeric secret (default 32 chars). Built from openssl base64 (not
-# `tr </dev/urandom | head`, which triggers SIGPIPE under `set -o pipefail`).
-gen() {
-  local n="${1:-32}"
-  # base64 of plenty of bytes, strip non-alnum, take n chars.
-  LC_ALL=C openssl rand -base64 $(( n * 2 + 16 )) | LC_ALL=C tr -dc 'A-Za-z0-9' | cut -c "1-${n}"
-}
-# Hex of N bytes (AES_KEY_HEX wants 48 bytes = 96 hex chars; matches chart default).
-gen_hex() { openssl rand -hex "${1:-48}"; }
-
-# One coordinated password per data store (shared across the files that need it).
-PG_BUD_PW="$(gen)"          # the shared 'bud' postgres role (owns all bud_* DBs)
-PG_KEYCLOAK_PW="$(gen)"     # keycloak's own postgres role + DB
-CH_BUD_PW="$(gen)"          # clickhouse 'bud' user
-KAFKA_BUD_PW="$(gen)"       # kafka 'bud' user
-MONGO_BUD_PW="$(gen)"       # mongodb 'bud' user
-VALKEY_PW="$(gen)"          # valkey requirepass
-
-APP_API_TOKEN="$(gen)"
-PASSWORD_SALT="$(gen)"
-AES_KEY_HEX="$(gen_hex 48)"
+# ---- coordinated values -----------------------------------------------------
+PG_BUD_PW="$(gen)"; PG_KEYCLOAK_PW="$(gen)"; PG_SEAWEEDFS_PW="$(gen)"
+CH_PW="$(gen)"; KAFKA_PW="$(gen)"; MONGO_PW="$(gen)"; VALKEY_PW="$(gen)"
+KEYCLOAK_ADMIN_PW="$(gen)"
+NOVU_ENCRYPTION_KEY="bud-$(gen 28)"; NOVU_EXTRA_PW="$(gen 24)"
+APP_API_TOKEN="$(gen)"; PASSWORD_SALT="$(gen 64)"; AES_KEY_HEX="$(gen_hex 44)"
 SUPER_USER_PASSWORD="$(gen)"
-S3_ACCESS_KEY="$(gen 20)"
-S3_SECRET_KEY="$(gen 40)"
-MCPGATEWAY_OIDC_SECRET="$(gen)"
-RSA_KEY_PASSWORD="$(gen)"
+S3_SECRET_KEY="$(gen)"
+BUDAPP_JWT="$(gen 64)"; GRAFANA_PW="$(gen)"
+SESSION_SECRET="$(gen 64)"; DEFAULT_CLIENT_SECRET="$(gen)"
+BUDADMIN_CS="$(gen)"; BUDCUSTOMER_CS="$(gen)"; BUDPLAYGROUND_CS="$(gen)"
+BUDNOTIFY_STORE_KEY="$(gen)"; BUDNOTIFY_JWT="$(gen 64)"
+MCP_BASIC_PW="$(gen 24)"; MCP_JWT="$(gen)"; MCP_ADMIN_PW="$(gen 24)"; MCP_AUTH_ENC="$(gen)"
+DAPR_SYM_KEY="$(gen)"
 
-# Encrypted RSA private key (PEM). Indented 6 spaces to sit under a `|` block
-# scalar at `microservices.rsaKeys.privateKey`.
-RSA_PEM="$(openssl genrsa -aes256 -passout "pass:${RSA_KEY_PASSWORD}" 2048 2>/dev/null)"
-RSA_PEM_INDENTED="$(printf '%s\n' "$RSA_PEM" | sed 's/^/      /')"
+RSA_PW="$(gen)"
+RSA_PRIV="$(openssl genrsa -aes256 -passout "pass:${RSA_PW}" 2048 2>/dev/null)"
+printf '%s\n' "$RSA_PRIV" > "/tmp/.budrsa.$$"
+RSA_PUB="$(openssl rsa -in "/tmp/.budrsa.$$" -passin "pass:${RSA_PW}" -pubout 2>/dev/null)"
+DAPR_ASYM="$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 2>/dev/null)"
+rm -f "/tmp/.budrsa.$$"
+indent6() { printf '%s\n' "$1" | sed 's/^/      /'; }
 
 # ---- overwrite guard --------------------------------------------------------
-OUTPUTS=(
-  argocd/bud/secrets.yaml
-  argocd/postgres/secrets.yaml
-  argocd/clickhouse/secrets.yaml
-  argocd/kafka/secrets.yaml
-  argocd/mongodb/secrets.yaml
-  argocd/valkey/secrets.yaml
-)
+OUTPUTS=(argocd/bud/secrets.yaml argocd/postgres/secrets.yaml argocd/clickhouse/secrets.yaml
+  argocd/kafka/secrets.yaml argocd/mongodb/secrets.yaml argocd/valkey/secrets.yaml
+  argocd/seaweedfs/secrets.yaml)
 if [ "$FORCE" -ne 1 ]; then
   for f in "${OUTPUTS[@]}"; do
-    if [ -e "$f" ]; then
-      echo "ERROR: $f already exists. Re-run with --force to overwrite (this regenerates ALL secrets)." >&2
-      exit 1
-    fi
+    [ -e "$f" ] && { echo "ERROR: $f exists. Re-run with --force to regenerate ALL secrets." >&2; exit 1; }
   done
 fi
+mkdir -p argocd/bud argocd/postgres argocd/clickhouse argocd/kafka argocd/mongodb argocd/valkey argocd/seaweedfs
 
-mkdir -p argocd/bud argocd/postgres argocd/clickhouse argocd/kafka argocd/mongodb argocd/valkey
-
-# ---- bud/secrets.yaml (the chart connects with these) -----------------------
+# ---- bud/secrets.yaml (complete, anchored to chart example.secrets.yaml) ----
 cat > argocd/bud/secrets.yaml <<EOF
 # GENERATED by scripts/gen-secrets.sh — DO NOT commit to a public repo.
-# Passwords here are coordinated with argocd/<addon>/secrets.yaml. Re-running the
-# script regenerates ALL of them together; never edit one file in isolation.
+# Coordinated with argocd/<addon>/secrets.yaml. Re-run with --force to regenerate
+# everything together; never hand-edit one file in isolation.
 registries:
-  registry.bud.studio:
+  ${REGISTRY}:
     username: "${REGISTRY_USER}"
     password: "${REGISTRY_TOKEN}"
-
 appApiToken: "${APP_API_TOKEN}"
-
-microservices:
-  rsaKeys:
-    privateKeyPassword: "${RSA_KEY_PASSWORD}"
-    privateKey: |
-${RSA_PEM_INDENTED}
-  global:
-    env:
-      SUPER_USER_EMAIL: "${ADMIN_EMAIL}"
-      SUPER_USER_PASSWORD: "${SUPER_USER_PASSWORD}"
-      PASSWORD_SALT: "${PASSWORD_SALT}"
-  budapp:
-    env:
-      AES_KEY_HEX: "${AES_KEY_HEX}"
-
 externalServices:
-  postgresql:
-    databases:
-      keycloak:   { username: keycloak, password: "${PG_KEYCLOAK_PW}" }
-      budapp:     { username: bud, password: "${PG_BUD_PW}" }
-      budcluster: { username: bud, password: "${PG_BUD_PW}" }
-      budmetrics: { username: bud, password: "${PG_BUD_PW}" }
-      budmodel:   { username: bud, password: "${PG_BUD_PW}" }
-      budsim:     { username: bud, password: "${PG_BUD_PW}" }
-      budeval:    { username: bud, password: "${PG_BUD_PW}" }
-      budask:     { username: bud, password: "${PG_BUD_PW}" }
-  clickhouse:
-    auth: { username: bud, password: "${CH_BUD_PW}" }
-  kafka:
-    auth: { username: bud, password: "${KAFKA_BUD_PW}" }
+  s3:
+    auth: { accessKey: bud, secretKey: "${S3_SECRET_KEY}" }
   mongodb:
-    auth: { username: bud, password: "${MONGO_BUD_PW}" }
+    auth: { username: bud_novu_mongodb, password: "${MONGO_PW}" }
   valkey:
     password: "${VALKEY_PW}"
-  s3:
-    auth: { accessKey: "${S3_ACCESS_KEY}", secretKey: "${S3_SECRET_KEY}" }
-  oidc:
-    clients:
-      mcpgateway: { secret: "${MCPGATEWAY_OIDC_SECRET}" }
-  keycloak:
-    clients:
-      mcpgateway: { secret: "${MCPGATEWAY_OIDC_SECRET}" }
+  clickhouse:
+    auth: { username: bud, password: "${CH_PW}" }
+  kafka:
+    auth: { username: bud, password: "${KAFKA_PW}" }
+  postgresql:
+    databases:
+      keycloak: { username: keycloak, password: "${PG_KEYCLOAK_PW}" }
+      budask: { username: bud, password: "${PG_BUD_PW}" }
+      budapp: { username: bud, password: "${PG_BUD_PW}" }
+      budcluster: { username: bud, password: "${PG_BUD_PW}" }
+      budmetrics: { username: bud, password: "${PG_BUD_PW}" }
+      budmodel: { username: bud, password: "${PG_BUD_PW}" }
+      budsim: { username: bud, password: "${PG_BUD_PW}" }
+      budeval: { username: bud, password: "${PG_BUD_PW}" }
+      buddoc: { username: bud, password: "${PG_BUD_PW}" }
+      budprompt: { username: bud, password: "${PG_BUD_PW}" }
+      mcpgateway: { username: bud, password: "${PG_BUD_PW}" }
+      budpipeline: { username: bud, password: "${PG_BUD_PW}" }
+      onyx: { username: bud, password: "${PG_BUD_PW}" }
+novu:
+  externalDatabase:
+    username: bud_novu_mongodb
+    password: "${MONGO_PW}"
+  store:
+    encryption-key: "${NOVU_ENCRYPTION_KEY}"
+novuExtra:
+  email: "${ADMIN_EMAIL}"
+  password: "${NOVU_EXTRA_PW}"
+microservices:
+  rsaKeys:
+    privateKeyPassword: "${RSA_PW}"
+    privateKey: |
+$(indent6 "$RSA_PRIV")
+    publicKey: |
+$(indent6 "$RSA_PUB")
+  budapp:
+    env:
+      JWT_SECRET_KEY: "${BUDAPP_JWT}"
+      HF_TOKEN: "${HF_TOKEN}"
+      GRAFANA_USERNAME: bud-runtime
+      GRAFANA_PASSWORD: "${GRAFANA_PW}"
+      AES_KEY_HEX: "${AES_KEY_HEX}"
+    redirectFlow:
+      sessionSecret: "${SESSION_SECRET}"
+      defaultClientId: budadmin-web
+      defaultClientSecret: "${DEFAULT_CLIENT_SECRET}"
+      clientsByHost:
+        '{{ include "bud.ingress.hosts.budadmin" . }}':
+          clientId: budadmin-web
+          clientSecret: "${BUDADMIN_CS}"
+        '{{ include "bud.ingress.hosts.budcustomer" . }}':
+          clientId: budcustomer-web
+          clientSecret: "${BUDCUSTOMER_CS}"
+        '{{ include "bud.ingress.hosts.budplayground" . }}':
+          clientId: budplayground-web
+          clientSecret: "${BUDPLAYGROUND_CS}"
+  budnotify:
+    env:
+      STORE_ENCRYPTION_KEY: "${BUDNOTIFY_STORE_KEY}"
+      JWT_SECRET: "${BUDNOTIFY_JWT}"
+  mcpgateway:
+    env:
+      BASIC_AUTH_USER: root
+      BASIC_AUTH_PASSWORD: "${MCP_BASIC_PW}"
+      JWT_SECRET_KEY: "${MCP_JWT}"
+      PLATFORM_ADMIN_EMAIL: "${ADMIN_EMAIL}"
+      PLATFORM_ADMIN_PASSWORD: "${MCP_ADMIN_PW}"
+      AUTH_ENCRYPTION_SECRET: "${MCP_AUTH_ENC}"
+  global:
+    env:
+      OPENAI_API_KEY: "${OPENAI_KEY}"
+      PASSWORD_SALT: "${PASSWORD_SALT}"
+      SUPER_USER_EMAIL: "${ADMIN_EMAIL}"
+      SUPER_USER_PASSWORD: "${SUPER_USER_PASSWORD}"
+keycloak:
+  auth:
+    adminUser: user
+    adminPassword: "${KEYCLOAK_ADMIN_PW}"
+daprExtra:
+  crypto:
+    symmetricKey: "${DAPR_SYM_KEY}"
+    asymmetricKey: |
+$(indent6 "$DAPR_ASYM")
 EOF
 
-# ---- postgres addon (CREATES the users + DBs) -------------------------------
-# The shared 'bud' role owns every bud_* database; keycloak owns its own.
+# ---- addon secrets (each CREATES its user; passwords match bud above) -------
 cat > argocd/postgres/secrets.yaml <<EOF
-# GENERATED — coordinated with argocd/bud/secrets.yaml (externalServices.postgresql).
+# GENERATED — coordinated with argocd/bud/secrets.yaml (externalServices.postgresql)
+# and argocd/seaweedfs/secrets.yaml. The 'bud' role owns all bud_* DBs.
 users:
   bud:
     password: "${PG_BUD_PW}"
-    databases:
-      - budapp
-      - budcluster
-      - budmetrics
-      - budmodel
-      - budsim
-      - budeval
-      - budask
+    databases: [budapp, budcluster, budmetrics, budmodel, budsim, budeval, budask, buddoc, budprompt, mcpgateway, budpipeline, onyx]
   keycloak:
     password: "${PG_KEYCLOAK_PW}"
-    databases:
-      - keycloak
+    databases: [keycloak]
+  seaweedfs:
+    password: "${PG_SEAWEEDFS_PW}"
+    databases: [seaweedfs]
 EOF
-
-# ---- clickhouse addon -------------------------------------------------------
 cat > argocd/clickhouse/secrets.yaml <<EOF
-# GENERATED — coordinated with argocd/bud/secrets.yaml (externalServices.clickhouse).
+# GENERATED — matches argocd/bud/secrets.yaml externalServices.clickhouse
 users:
   bud:
-    password: "${CH_BUD_PW}"
+    password: "${CH_PW}"
 EOF
-
-# ---- kafka addon ------------------------------------------------------------
 cat > argocd/kafka/secrets.yaml <<EOF
-# GENERATED — coordinated with argocd/bud/secrets.yaml (externalServices.kafka).
+# GENERATED — matches argocd/bud/secrets.yaml externalServices.kafka
 users:
   bud:
-    password: "${KAFKA_BUD_PW}"
+    password: "${KAFKA_PW}"
 EOF
-
-# ---- mongodb addon ----------------------------------------------------------
 cat > argocd/mongodb/secrets.yaml <<EOF
-# GENERATED — coordinated with argocd/bud/secrets.yaml (externalServices.mongodb).
+# GENERATED — matches argocd/bud/secrets.yaml externalServices.mongodb
 users:
   bud:
-    password: "${MONGO_BUD_PW}"
+    password: "${MONGO_PW}"
 EOF
-
-# ---- valkey addon -----------------------------------------------------------
 cat > argocd/valkey/secrets.yaml <<EOF
-# GENERATED — coordinated with argocd/bud/secrets.yaml (externalServices.valkey).
+# GENERATED — matches argocd/bud/secrets.yaml externalServices.valkey
 valkey:
   auth:
     password: "${VALKEY_PW}"
 EOF
+cat > argocd/seaweedfs/secrets.yaml <<EOF
+# GENERATED — seaweedfs connects to its own in-cluster Postgres user;
+# password matches the 'seaweedfs' user in argocd/postgres/secrets.yaml.
+postgres:
+  host: "pooler-rw.postgres"
+  port: 5432
+  username: "seaweedfs"
+  password: "${PG_SEAWEEDFS_PW}"
+  database: "seaweedfs"
+EOF
 
+# ---- completeness self-test: render the real chart with the generated file --
+if [ "$VERIFY" -eq 1 ]; then
+  if command -v helm >/dev/null 2>&1; then
+    echo "🔍 Verifying generated secrets render the bud chart cleanly…"
+    TMP="$(mktemp -d)"
+    if helm pull "oci://${REGISTRY}/charts/bud" --version "$CHART_VERSION" --untar --untardir "$TMP" >/dev/null 2>&1; then
+      printf 'global:\n  ingress:\n    hosts:\n      root: "verify.example.com"\n' > "$TMP/v.yaml"
+      if helm template bud "$TMP/bud" -f "$TMP/v.yaml" -f argocd/bud/secrets.yaml >/dev/null 2>"$TMP/err"; then
+        echo "✅ Render check passed — bud/secrets.yaml is complete for chart $CHART_VERSION."
+      else
+        echo "❌ Render check FAILED — bud/secrets.yaml is missing a key the chart needs:" >&2
+        grep -iE "at <|Error:" "$TMP/err" | head -3 >&2
+        echo "   (chart $CHART_VERSION may have added keys; update this script against its example.secrets.yaml)" >&2
+        rm -rf "$TMP"; exit 1
+      fi
+    else
+      echo "⚠️  Could not pull chart to verify (registry login?). Skipping render check." >&2
+    fi
+    rm -rf "$TMP"
+  else
+    echo "⚠️  helm not found — skipping render check. Install helm or pass --no-verify knowingly." >&2
+  fi
+fi
+
+echo ""
 echo "✅ Generated coordinated secrets:"
 for f in "${OUTPUTS[@]}"; do echo "   $f"; done
 cat <<EOF
 
-Next:
-  • Wire each addon's secrets.yaml into cluster-addons.yaml so it is applied
-    (add a "secrets://\$values/argocd/<addon>/secrets.yaml" or
-    "\$values/argocd/<addon>/secrets.yaml" valueFile to that addon).
-  • Commit these to a PRIVATE repo, or encrypt with SOPS + the helm-secrets
-    ArgoCD plugin. NEVER commit them to a public repo.
-  • Admin login: ${ADMIN_EMAIL} / (generated SUPER_USER_PASSWORD in bud/secrets.yaml)
+⚠️  DELIVERY — ArgoCD reads config from GIT, and these files are gitignored.
+   In YOUR PRIVATE fork you MUST force-add and push them, or ArgoCD renders
+   with values.yaml only and the bud Application fails with a nil-pointer:
+
+     git add -f ${OUTPUTS[*]}
+     git commit -m "add generated secrets" && git push
+
+   Keep the fork PRIVATE. After pushing, HARD-REFRESH the ArgoCD apps
+   (the manifest error is cached).
+
+   Admin login: ${ADMIN_EMAIL} / SUPER_USER_PASSWORD (in argocd/bud/secrets.yaml)
+   Set by hand if you use them: HF_TOKEN / OPENAI_API_KEY.
 EOF
