@@ -70,6 +70,7 @@ SESSION_SECRET="$(gen 64)"; DEFAULT_CLIENT_SECRET="$(gen)"
 BUDADMIN_CS="$(gen)"; BUDCUSTOMER_CS="$(gen)"; BUDPLAYGROUND_CS="$(gen)"
 BUDNOTIFY_STORE_KEY="$(gen)"; BUDNOTIFY_JWT="$(gen 64)"
 MCP_BASIC_PW="$(gen 24)"; MCP_JWT="$(gen)"; MCP_ADMIN_PW="$(gen 24)"; MCP_AUTH_ENC="$(gen)"
+MCPGATEWAY_OIDC_SECRET="$(gen)"  # the mcpgateway OAuth client secret; bud-side AND keycloak realm must match
 DAPR_SYM_KEY="$(gen)"
 
 RSA_PW="$(gen)"
@@ -83,13 +84,13 @@ indent6() { printf '%s\n' "$1" | sed 's/^/      /'; }
 # ---- overwrite guard --------------------------------------------------------
 OUTPUTS=(argocd/bud/secrets.yaml argocd/postgres/secrets.yaml argocd/clickhouse/secrets.yaml
   argocd/kafka/secrets.yaml argocd/mongodb/secrets.yaml argocd/valkey/secrets.yaml
-  argocd/seaweedfs/secrets.yaml)
+  argocd/seaweedfs/secrets.yaml argocd/keycloak/secrets.yaml)
 if [ "$FORCE" -ne 1 ]; then
   for f in "${OUTPUTS[@]}"; do
     [ -e "$f" ] && { echo "ERROR: $f exists. Re-run with --force to regenerate ALL secrets." >&2; exit 1; }
   done
 fi
-mkdir -p argocd/bud argocd/postgres argocd/clickhouse argocd/kafka argocd/mongodb argocd/valkey argocd/seaweedfs
+mkdir -p argocd/bud argocd/postgres argocd/clickhouse argocd/kafka argocd/mongodb argocd/valkey argocd/seaweedfs argocd/keycloak
 
 # ---- bud/secrets.yaml (complete, anchored to chart example.secrets.yaml) ----
 cat > argocd/bud/secrets.yaml <<EOF
@@ -130,6 +131,12 @@ externalServices:
       mcpgateway: { username: bud, password: "${PG_BUD_PW}" }
       budpipeline: { username: bud, password: "${PG_BUD_PW}" }
       onyx: { username: bud, password: "${PG_BUD_PW}" }
+  # mcpgateway OAuth client — secret MUST equal the keycloak realm's mcpgateway
+  # client (argocd/keycloak/secrets.yaml). id defaults to "mcpgateway" in the chart.
+  oidc:
+    clients:
+      mcpgateway:
+        secret: "${MCPGATEWAY_OIDC_SECRET}"
 novu:
   externalDatabase:
     username: bud_novu
@@ -290,6 +297,36 @@ postgres:
   username: "seaweedfs"
   password: "${PG_SEAWEEDFS_PW}"
   database: "seaweedfs"
+EOF
+
+# keycloak: DB password (matches the postgres addon's 'keycloak' user), admin
+# password, the super-user, and the realm OAuth clients whose secrets MUST equal
+# bud's redirectFlow / oidc client secrets (else budapp login -> invalid_client).
+# realm STRUCTURE (realm name, redirect URIs) lives in keycloak/values.yaml.
+cat > argocd/keycloak/secrets.yaml <<EOF
+# GENERATED — coordinated with argocd/bud/secrets.yaml and the postgres addon.
+postgres:
+  password: "${PG_KEYCLOAK_PW}"
+password: "${KEYCLOAK_ADMIN_PW}" # keycloak admin (matches bud keycloak.auth.adminPassword)
+realmImport:
+  users:
+    - username: "${ADMIN_EMAIL}"
+      email: "${ADMIN_EMAIL}" # MUST equal bud SUPER_USER_EMAIL
+      password: "${SUPER_USER_PASSWORD}" # MUST equal bud SUPER_USER_PASSWORD
+      realmRoles: [super_admin]
+  clients:
+    budadmin:
+      clientId: budadmin-web
+      clientSecret: "${BUDADMIN_CS}"
+    budcustomer:
+      clientId: budcustomer-web
+      clientSecret: "${BUDCUSTOMER_CS}"
+    budplayground:
+      clientId: budplayground-web
+      clientSecret: "${BUDPLAYGROUND_CS}"
+    mcpgateway:
+      clientId: mcpgateway
+      clientSecret: "${MCPGATEWAY_OIDC_SECRET}"
 EOF
 
 # ---- completeness self-test: render the real chart with the generated file --

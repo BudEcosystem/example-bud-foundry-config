@@ -1,8 +1,39 @@
-# Non-secret configuration for the bundled Keycloak (OIDC provider).
-# Leave empty to use chart defaults, or override as needed. If you already run
-# your own OIDC IdP (Auth0, Okta, Azure AD, ...), you can remove the `keycloak`
-# element from prod-apps.yaml and point externalServices.keycloak.* at it instead.
+# Keycloak (OIDC provider) — non-secret config.
+#
+# Secrets (postgres password, admin password, realm client secrets, super-user
+# password) are generated into argocd/keycloak/secrets.yaml by scripts/gen-secrets.sh,
+# COORDINATED with the bud chart (the client secrets must equal bud's
+# redirectFlow/oidc client secrets, and the postgres password must equal the
+# 'keycloak' user the postgres addon creates).
+#
+# This file holds only the realm STRUCTURE. Redirect URIs are derived from your
+# ingress host — UPDATE the host below to match global.ingress.hosts.root in
+# argocd/bud/values.yaml. All three frontend clients share budapp's BFF callback
+# (https://app.<root>/auth/redirect/callback).
 
-# Example overrides (uncomment + edit as needed):
-# ingress:
-#   className: "traefik"
+postgres:
+  host: "pooler-rw.postgres"
+  port: 5432
+  username: "keycloak"
+  database: "keycloak"
+  # password: supplied by secrets.yaml
+
+realmImport:
+  enabled: true
+  realm: "bud-keycloak" # budapp's issuer is hardcoded to /realms/bud-keycloak — do not change
+  keycloakCRName: keycloak
+  # All frontend clients redirect to budapp's BFF callback. app.<root> = budapp host.
+  # ⚠️ Replace deploy-test.bud.studio with YOUR global.ingress.hosts.root.
+  defaultCallbackUrls:
+    - "https://app.deploy-test.bud.studio/auth/redirect/callback"
+  webOrigins: ["+"]
+  realmRoles:
+    - super_admin
+    - admin
+    - user
+  # Super-user (users:) and OAuth clients (clients:) carry secrets, so they are
+  # defined in argocd/keycloak/secrets.yaml — NOT here. clientId values there:
+  # budadmin-web, budcustomer-web, budplayground-web, mcpgateway.
+
+username: "admin" # keycloak admin user; adminPassword via secrets.yaml
+instances: 1
