@@ -26,6 +26,12 @@ realmImport:
   # ⚠️ Replace deploy-test.bud.studio with YOUR global.ingress.hosts.root.
   defaultCallbackUrls:
     - "https://app.deploy-test.bud.studio/auth/redirect/callback"
+  # REQUIRED: without postLogoutUrls the chart renders client `attributes: null`,
+  # which the KeycloakRealmImport CRD rejects ("must be of type object"). Set it
+  # to your frontend base URLs. ⚠️ use YOUR ingress root.
+  postLogoutUrls:
+    - "https://app.deploy-test.bud.studio"
+    - "https://admin.deploy-test.bud.studio"
   webOrigins: ["+"]
   realmRoles:
     - super_admin
