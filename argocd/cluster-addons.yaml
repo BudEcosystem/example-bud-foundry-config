@@ -34,6 +34,12 @@ spec:
             namespace: dapr-system
           - name: cert-manager
             namespace: cert-manager
+          # Creates the letsencrypt-http01 ClusterIssuer that cert-manager's
+          # ingress-shim defaults to. REQUIRED when ingress.https=internal — without
+          # it every *-acme-cert stays Ready=False ("ClusterIssuer letsencrypt-http01
+          # not found"). HTTP-01 solver via traefik, so hosts must be public on :80.
+          - name: cert-manager-issuer
+            namespace: cert-manager
           - name: postgres
             namespace: postgres
           - name: clickhouse
