@@ -104,7 +104,10 @@ externalServices:
   s3:
     auth: { accessKey: bud, secretKey: "${S3_SECRET_KEY}" }
   mongodb:
-    auth: { username: bud_novu_mongodb, password: "${MONGO_PW}" }
+    # username MUST match the chart default + the addon user (bud_novu). The chart's
+    # example.secrets.yaml says bud_novu_mongodb but values.yaml uses bud_novu — the
+    # latter is authoritative (novu connects as bud_novu).
+    auth: { username: bud_novu, password: "${MONGO_PW}" }
   valkey:
     password: "${VALKEY_PW}"
   clickhouse:
@@ -128,7 +131,7 @@ externalServices:
       onyx: { username: bud, password: "${PG_BUD_PW}" }
 novu:
   externalDatabase:
-    username: bud_novu_mongodb
+    username: bud_novu
     password: "${MONGO_PW}"
   store:
     encryption-key: "${NOVU_ENCRYPTION_KEY}"
@@ -192,45 +195,50 @@ daprExtra:
 $(indent6 "$DAPR_ASYM")
 EOF
 
-# ---- addon secrets (each CREATES its user; passwords match bud above) -------
-cat > argocd/postgres/secrets.yaml <<EOF
-# GENERATED — coordinated with argocd/bud/secrets.yaml (externalServices.postgresql)
-# and argocd/seaweedfs/secrets.yaml. The 'bud' role owns all bud_* DBs.
-users:
-  bud:
-    password: "${PG_BUD_PW}"
-    databases: [budapp, budcluster, budmetrics, budmodel, budsim, budeval, budask, buddoc, budprompt, mcpgateway, budpipeline, onyx]
-  keycloak:
-    password: "${PG_KEYCLOAK_PW}"
-    databases: [keycloak]
-  seaweedfs:
-    password: "${PG_SEAWEEDFS_PW}"
-    databases: [seaweedfs]
-EOF
-cat > argocd/clickhouse/secrets.yaml <<EOF
-# GENERATED — matches argocd/bud/secrets.yaml externalServices.clickhouse
-users:
-  bud:
-    password: "${CH_PW}"
-EOF
-cat > argocd/kafka/secrets.yaml <<EOF
-# GENERATED — matches argocd/bud/secrets.yaml externalServices.kafka
-users:
-  bud:
-    password: "${KAFKA_PW}"
-EOF
-cat > argocd/mongodb/secrets.yaml <<EOF
-# GENERATED — matches argocd/bud/secrets.yaml externalServices.mongodb
-users:
-  bud:
-    password: "${MONGO_PW}"
-EOF
+# ---- addon secrets: pull each addon's AUTHORITATIVE values.budruntime.yaml from
+#      the registry and inject ONLY the generated passwords. This guarantees the
+#      user names / databases / roles / grants exactly match what the addon
+#      creates — no hand-maintained copies to drift. Requires yq + helm.
+command -v yq >/dev/null 2>&1 || { echo "ERROR: yq is required to build addon secrets." >&2; exit 1; }
+command -v helm >/dev/null 2>&1 || { echo "ERROR: helm is required to fetch addon configs." >&2; exit 1; }
+
+ADDON_TMP="$(mktemp -d)"
+pull_addon() { # $1=chart name -> sets file at $ADDON_TMP/<name>.yaml (the budruntime values)
+  local c="$1"
+  helm pull "oci://${REGISTRY}/charts/${c}" --version 0.1.0 --untar --untardir "$ADDON_TMP" >/dev/null 2>&1 \
+    || { echo "ERROR: could not pull ${c} chart (registry login?)." >&2; rm -rf "$ADDON_TMP"; exit 1; }
+  cp "$ADDON_TMP/${c}/values.budruntime.yaml" "$ADDON_TMP/${c}.yaml"
+}
+
+# postgres: bud + keycloak + seaweedfs users (structure incl. databases comes from the chart)
+pull_addon postgres
+yq -i ".users.bud.password = \"${PG_BUD_PW}\" | .users.keycloak.password = \"${PG_KEYCLOAK_PW}\" | .users.seaweedfs.password = \"${PG_SEAWEEDFS_PW}\"" "$ADDON_TMP/postgres.yaml"
+{ echo "# GENERATED — passwords injected into the chart's authoritative users block."; cat "$ADDON_TMP/postgres.yaml"; } > argocd/postgres/secrets.yaml
+
+# clickhouse: bud user (databases + grants come from the chart)
+pull_addon clickhouse
+yq -i ".users.bud.password = \"${CH_PW}\"" "$ADDON_TMP/clickhouse.yaml"
+{ echo "# GENERATED — password injected into the chart's authoritative users block."; cat "$ADDON_TMP/clickhouse.yaml"; } > argocd/clickhouse/secrets.yaml
+
+# kafka: bud user
+pull_addon kafka
+yq -i ".users.bud.password = \"${KAFKA_PW}\"" "$ADDON_TMP/kafka.yaml"
+{ echo "# GENERATED — password injected into the chart's authoritative users block."; cat "$ADDON_TMP/kafka.yaml"; } > argocd/kafka/secrets.yaml
+
+# mongodb: bud_novu user (db + roles come from the chart)
+pull_addon mongodb
+yq -i ".users.bud_novu.password = \"${MONGO_PW}\"" "$ADDON_TMP/mongodb.yaml"
+{ echo "# GENERATED — password injected into the chart's authoritative users block."; cat "$ADDON_TMP/mongodb.yaml"; } > argocd/mongodb/secrets.yaml
+
+# valkey: auth.password (sticky-secret subchart — see README note on first-deploy)
 cat > argocd/valkey/secrets.yaml <<EOF
 # GENERATED — matches argocd/bud/secrets.yaml externalServices.valkey
 valkey:
   auth:
     password: "${VALKEY_PW}"
 EOF
+
+# seaweedfs: connects to its own in-cluster Postgres user (matches postgres users.seaweedfs)
 cat > argocd/seaweedfs/secrets.yaml <<EOF
 # GENERATED — seaweedfs connects to its own in-cluster Postgres user;
 # password matches the 'seaweedfs' user in argocd/postgres/secrets.yaml.
@@ -241,6 +249,7 @@ postgres:
   password: "${PG_SEAWEEDFS_PW}"
   database: "seaweedfs"
 EOF
+rm -rf "$ADDON_TMP"
 
 # ---- completeness self-test: render the real chart with the generated file --
 if [ "$VERIFY" -eq 1 ]; then
