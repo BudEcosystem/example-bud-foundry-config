@@ -17,11 +17,20 @@ global:
 
 ingress:
   enabled: true
-  https: external # external | internal | disabled
+  # 'internal' = cert-manager issues + Traefik terminates TLS in-cluster. This is
+  # what emits the `kubernetes.io/tls-acme: "true"` annotation that triggers
+  # cert-manager. 'external' assumes an upstream LB/WAF terminates TLS and issues
+  # NO certs in-cluster (Traefik serves a self-signed fallback -> browser warning).
+  # 'disabled' = plain HTTP.
+  https: internal # external | internal | disabled
   className: "traefik" # your cluster's ingress class
-  # cert-manager ClusterIssuer that signs the *-acme-cert secrets the chart
-  # references (cert-manager is installed by cluster-addons).
-  clusterIssuer: "letsencrypt-prod"
+  # NOTE: with 'internal', certs are issued via cert-manager's ingress-shim
+  # default ClusterIssuer (letsencrypt-http01, installed by the cert-manager-issuer
+  # addon). That issuer uses the HTTP-01 challenge, so every ingress host
+  # (admin.<root>, app.<root>, gateway.<root>, ...) must be PUBLICLY resolvable and
+  # reachable on :80 for Let's Encrypt to validate. The clusterIssuer key below is
+  # NOT consumed by this chart (the ingress only emits tls-acme) — left for reference.
+  clusterIssuer: "letsencrypt-http01"
 
 # Storage classes are cluster-specific and have NO safe default — set them.
 storage:
