@@ -11,6 +11,18 @@
 # argocd/bud/values.yaml. All three frontend clients share budapp's BFF callback
 # (https://app.<root>/auth/redirect/callback).
 
+# Public ingress for Keycloak. REQUIRED for browser OIDC login: the user is
+# redirected to this host to authenticate, and the token `iss` claim is built
+# from it. `host` sets BOTH the Ingress rule AND the Keycloak CR's KC_HOSTNAME,
+# so they always match. TLS issues via the same cert-manager/letsencrypt-http01
+# path as the bud hosts (tls-acme), so auth.<root> must be public on :80.
+# ⚠️ Replace deploy-test.bud.studio with YOUR ingress root, and set
+# externalServices.oidc.url in argocd/bud/values.yaml to the SAME URL +/realms/bud-keycloak.
+ingress:
+  enabled: true
+  https: true
+  host: "auth.deploy-test.bud.studio"
+
 postgres:
   host: "pooler-rw.postgres"
   port: 5432

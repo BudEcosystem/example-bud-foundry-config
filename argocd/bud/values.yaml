@@ -43,6 +43,15 @@ storage:
     className: "local-path"
   budappStaticDir:
     className: "local-path"
+
+# OIDC issuer — budapp's OIDC_ISSUER + the browser login redirect + the token
+# `iss` claim all come from this. MUST equal the public Keycloak ingress host set
+# in argocd/keycloak/values.yaml (ingress.host) + "/realms/bud-keycloak".
+# Default in the chart is the placeholder http://auth.bud.lan/... — override it:
+externalServices:
+  oidc:
+    url: "https://auth.deploy-test.bud.studio/realms/bud-keycloak"
+
 # Optional: pin replica counts / HPA bounds to your capacity.
 # microservices:
 #   budapp:
