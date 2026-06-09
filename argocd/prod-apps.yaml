@@ -20,7 +20,7 @@ spec:
           - name: keycloak
             version: "0.1.0"
           - name: bud
-            version: "0.14.0"
+            version: "0.14.1"
   template:
     metadata:
       name: "{{.name}}"
