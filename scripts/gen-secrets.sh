@@ -290,16 +290,24 @@ valkey:
     password: "${VALKEY_PW}"
 EOF
 
-# seaweedfs: connects to its own in-cluster Postgres user (matches postgres users.seaweedfs)
+# seaweedfs: connects to its own in-cluster Postgres user (matches postgres
+# users.seaweedfs). The identities block creates the S3 'bud' identity's
+# credentials — accessKey/secretKey MUST equal bud's externalServices.s3.auth
+# (same S3_SECRET_KEY) or every S3 request from budapp/budmodel 403s.
 cat > argocd/seaweedfs/secrets.yaml <<EOF
 # GENERATED — seaweedfs connects to its own in-cluster Postgres user;
 # password matches the 'seaweedfs' user in argocd/postgres/secrets.yaml.
+# The 'bud' identity credentials match argocd/bud/secrets.yaml s3.auth.
 postgres:
   host: "pooler-rw.postgres"
   port: 5432
   username: "seaweedfs"
   password: "${PG_SEAWEEDFS_PW}"
   database: "seaweedfs"
+identities:
+  bud:
+    accessKey: "bud"
+    secretKey: "${S3_SECRET_KEY}"
 EOF
 
 # keycloak: DB password (matches the postgres addon's 'keycloak' user), admin
