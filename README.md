@@ -96,24 +96,29 @@ kubectl apply -f argocd/project.yaml
 # 2. In-cluster dependencies (databases, dapr, cert-manager, …).
 kubectl apply -f argocd/cluster-addons.yaml
 
-# 3. WAIT for the Dapr sidecar-injector to be Ready before applying the
-#    platform. The injector is a mutating webhook: pods created before it is
-#    up come up WITHOUT their daprd sidecar (Dapr service-invocation / pubsub
-#    then silently fails, and ArgoCD won't fix it because the pod is "Running").
-#    Cross-appset sync-waves do NOT gate on health, so this wait is required.
-until kubectl -n dapr-system get deploy dapr-sidecar-injector >/dev/null 2>&1; do
-  echo "waiting for dapr app to create the injector…"; sleep 10
-done
-kubectl -n dapr-system rollout status deploy/dapr-sidecar-injector --timeout=300s
+# 3. GATE: wait until every dependency Application is Synced+Healthy before
+#    applying the platform. This is REQUIRED, not optional:
+#      - the dapr sidecar-injector is a mutating webhook — bud pods created
+#        before it is Ready come up WITHOUT their daprd sidecar (permanent;
+#        ArgoCD won't fix it because the pod is "Running");
+#      - bud services crash-loop until Postgres/Valkey/etc. accept connections.
+#    An ApplicationSet reports Healthy as soon as it GENERATES its apps, not when
+#    they are Healthy — so applying prod-apps right away races the deps. The gate
+#    Job polls the addon Applications until all are Synced+Healthy (or fails).
+kubectl apply -f argocd/gate.yaml
+kubectl -n argocd wait --for=condition=complete job/budfoundry-dep-gate --timeout=1300s
+# If the gate FAILS instead of completing, an addon never went Healthy — inspect:
+#   kubectl -n argocd logs job/budfoundry-dep-gate
+#   kubectl -n argocd get applications        # find the not-Healthy addon
 
 # 4. Keycloak + the bud platform (every dapr-enabled pod now gets its sidecar).
 kubectl apply -f argocd/prod-apps.yaml
 ```
 
-> If you ever see bud pods Running but missing their `daprd` sidecar (they were
-> created before the injector was ready), restart them once the injector is up:
-> `kubectl -n bud rollout restart deploy -l dapr.io/enabled=true` (or restart the
-> affected deployments) — they'll be re-admitted through the injector webhook.
+> Fallback — if you ever see bud pods Running but missing their `daprd` sidecar
+> (created before the injector was ready), restart them once the injector is up:
+> `kubectl -n bud rollout restart deploy -l dapr.io/enabled=true` — they'll be
+> re-admitted through the injector webhook.
 
 ## Notes
 
