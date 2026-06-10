@@ -1,0 +1,33 @@
+# AppProject that groups all Bud Foundry Applications (the cluster-addons +
+# prod-apps ApplicationSets set spec.template.spec.project to this). This is an
+# ArgoCD-level logical grouping — independent of Kubernetes namespaces.
+#
+# Scope is intentionally "loose": sourceRepos is locked to the two repos these
+# apps actually use, but destinations/resources stay open because the addon
+# charts install operators (CRDs, ClusterRoles, admission webhooks, APIServices)
+# across ~10 namespaces — a tighter allowlist silently breaks syncs.
+#
+# Apply this BEFORE the appsets (an Application referencing a missing project
+# fails to sync with "project does not exist").
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: bud-foundry
+  namespace: argocd
+  # Keep the project even if its parent app/kustomization is pruned.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: Bud Foundry platform and its in-cluster dependencies
+  sourceRepos:
+    - registry.bud.studio/charts
+    - https://github.com/BudEcosystem/example-bud-foundry-config
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
