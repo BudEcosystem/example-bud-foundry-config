@@ -9,6 +9,17 @@
 # The buckets + S3 ingress below only take effect in the cluster app, since
 # they are gated behind createCluster in the chart.
 
+# Single-node sizing (this is a single-worker test cluster). master uses Raft —
+# keep it ODD (1 or 3, never 2). defaultReplication "000" = no data replication,
+# so one volume server is enough.
+replicas:
+  master: 1
+  filer: 1
+  volume: 1
+  s3: 1
+  worker: 1
+defaultReplication: "000"
+
 # S3 ingress for EXTERNAL access. budapp/budmodel reach S3 over internal DNS
 # (seaweed-s3.seaweedfs:8333) and do NOT need this — set enabled: false if you
 # don't need an external S3 endpoint. Host must be public on :80 for the
