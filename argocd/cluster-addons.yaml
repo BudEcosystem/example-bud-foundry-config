@@ -50,7 +50,17 @@ spec:
             namespace: mongodb
           - name: valkey
             namespace: valkey
+          # SeaweedFS is split into two Applications to break a cold-start
+          # deadlock: the operator's admission webhook rejects the Seaweed CR
+          # until its caBundle is patched, but that patch runs as a PostSync
+          # hook that only fires after a successful Sync. The "seaweedfs" app
+          # deploys the operator alone (createCluster=false) so its Sync
+          # succeeds and PostSync patches the caBundle; "seaweedfs-cluster"
+          # (operator disabled, createCluster=true) then has its CR admitted.
+          # Both apps use the SAME chart + config folder (argocd/seaweedfs/).
           - name: seaweedfs
+            namespace: seaweedfs
+          - name: seaweedfs-cluster
             namespace: seaweedfs
   template:
     metadata:
@@ -59,6 +69,32 @@ spec:
       project: default
       sources:
         # 1) The chart, pulled from the OCI registry (no source-repo access needed).
+        #    The two seaweedfs apps reuse the "seaweedfs" chart (v0.2.0+, which
+        #    adds the createCluster toggle) and the argocd/seaweedfs/ config.
+        {{- if or (eq .name "seaweedfs") (eq .name "seaweedfs-cluster") }}
+        - repoURL: registry.bud.studio/charts
+          chart: "seaweedfs"
+          targetRevision: "0.2.0"
+          helm:
+            releaseName: "seaweedfs"
+            {{- if eq .name "seaweedfs-cluster" }}
+            # Cluster resources only; reuse the operator app's CRDs + webhook.
+            parameters:
+              - name: "createCluster"
+                value: "true"
+              - name: "seaweedfs-operator.enabled"
+                value: "false"
+            {{- else }}
+            # Operator only; the Seaweed CR ships in seaweedfs-cluster.
+            parameters:
+              - name: "createCluster"
+                value: "false"
+            {{- end }}
+            valueFiles:
+              - "$values/argocd/seaweedfs/values.yaml"
+              - "$values/argocd/seaweedfs/secrets.yaml"
+            ignoreMissingValueFiles: true
+        {{- else }}
         - repoURL: registry.bud.studio/charts
           chart: "{{.name}}"
           targetRevision: "0.1.0" # dependency charts are versioned at 0.1.0
@@ -73,6 +109,7 @@ spec:
               - "$values/argocd/{{.name}}/values.yaml"
               - "$values/argocd/{{.name}}/secrets.yaml"
             ignoreMissingValueFiles: true
+        {{- end }}
         # 2) This config repo. POINT repoURL AT YOUR FORK.
         - repoURL: https://github.com/BudEcosystem/example-bud-foundry-config
           targetRevision: main
@@ -80,6 +117,21 @@ spec:
       destination:
         server: "https://kubernetes.default.svc"
         namespace: "{{.namespace}}"
+      {{- if eq .name "seaweedfs" }}
+      # ArgoCD does not own the webhook caBundle (it is patched in by the
+      # operator's PostSync cert job); ignore it so selfHeal never churns it.
+      ignoreDifferences:
+        - group: admissionregistration.k8s.io
+          kind: MutatingWebhookConfiguration
+          name: seaweedfs-seaweedfs-operator-mutating-webhook-configuration
+          jqPathExpressions:
+            - ".webhooks[].clientConfig.caBundle"
+        - group: admissionregistration.k8s.io
+          kind: ValidatingWebhookConfiguration
+          name: seaweedfs-seaweedfs-operator-validating-webhook-configuration
+          jqPathExpressions:
+            - ".webhooks[].clientConfig.caBundle"
+      {{- end }}
       syncPolicy:
         syncOptions:
           - CreateNamespace=true
