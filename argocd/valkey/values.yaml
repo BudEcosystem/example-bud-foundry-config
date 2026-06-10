@@ -1,0 +1,13 @@
+# argocd/valkey/values.yaml — Valkey config loaded via
+# $values/argocd/valkey/values.yaml by the cluster-addons ApplicationSet.
+#
+# notify-keyspace-events is REQUIRED: budgateway (and semantic-router) learn
+# about new/updated/expired API keys and model config by subscribing to Redis
+# keyspace notifications (__keyevent@<db>__:set / :del / :expired). These are
+# OFF by default in Valkey/Redis — without this, the gateway only picks up API
+# keys on restart (it re-reads the full table at boot) and never sees live
+# updates. "KEA" = Keyspace + Keyevent + All event classes.
+valkey:
+  config:
+    extraConfig:
+      - "notify-keyspace-events KEA"
