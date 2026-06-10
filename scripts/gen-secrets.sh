@@ -308,6 +308,12 @@ EOF
 # realm STRUCTURE (realm name, redirect URIs) lives in keycloak/values.yaml.
 cat > argocd/keycloak/secrets.yaml <<EOF
 # GENERATED — coordinated with argocd/bud/secrets.yaml and the postgres addon.
+# Registry creds so the chart creates the imagePullSecret for the custom
+# keycloak-budtheme image (same robot as bud).
+registries:
+  ${REGISTRY}:
+    username: "${REGISTRY_USER}"
+    password: "${REGISTRY_TOKEN}"
 postgres:
   password: "${PG_KEYCLOAK_PW}"
 password: "${KEYCLOAK_ADMIN_PW}" # keycloak admin (matches bud keycloak.auth.adminPassword)
