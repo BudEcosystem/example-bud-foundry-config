@@ -89,9 +89,31 @@ sync will silently fall back to chart defaults
    [Installation Guide](https://docs.budecosystem.com/developer-docs/installation).
 
 ```bash
+# 1. AppProject that groups every platform Application (apply FIRST — an
+#    Application referencing a missing project won't sync).
+kubectl apply -f argocd/project.yaml
+
+# 2. In-cluster dependencies (databases, dapr, cert-manager, …).
 kubectl apply -f argocd/cluster-addons.yaml
+
+# 3. WAIT for the Dapr sidecar-injector to be Ready before applying the
+#    platform. The injector is a mutating webhook: pods created before it is
+#    up come up WITHOUT their daprd sidecar (Dapr service-invocation / pubsub
+#    then silently fails, and ArgoCD won't fix it because the pod is "Running").
+#    Cross-appset sync-waves do NOT gate on health, so this wait is required.
+until kubectl -n dapr-system get deploy dapr-sidecar-injector >/dev/null 2>&1; do
+  echo "waiting for dapr app to create the injector…"; sleep 10
+done
+kubectl -n dapr-system rollout status deploy/dapr-sidecar-injector --timeout=300s
+
+# 4. Keycloak + the bud platform (every dapr-enabled pod now gets its sidecar).
 kubectl apply -f argocd/prod-apps.yaml
 ```
+
+> If you ever see bud pods Running but missing their `daprd` sidecar (they were
+> created before the injector was ready), restart them once the injector is up:
+> `kubectl -n bud rollout restart deploy -l dapr.io/enabled=true` (or restart the
+> affected deployments) — they'll be re-admitted through the injector webhook.
 
 ## Notes
 
