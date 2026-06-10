@@ -119,7 +119,7 @@ spec:
       sources:
         - repoURL: registry.bud.studio/charts
           chart: "seaweedfs"
-          targetRevision: "0.2.0"
+          targetRevision: "0.3.0"
           helm:
             releaseName: "seaweedfs"
             {{- if eq .name "seaweedfs-cluster" }}
