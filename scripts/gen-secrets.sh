@@ -164,15 +164,18 @@ $(indent6 "$RSA_PUB")
       sessionSecret: "${SESSION_SECRET}"
       defaultClientId: budadmin-web
       defaultClientSecret: "${DEFAULT_CLIENT_SECRET}"
+      # App-keyed override (matches the chart's default clientsByHost keys), so
+      # Helm overwrites in place instead of ADDING host-keyed entries (which would
+      # duplicate the client_id and make budapp skip the redirect-flow router ->
+      # /auth/redirect/* 404). Only clientSecret is set; clientId + hosts come from
+      # the chart. The chart's example.secrets.yaml uses the host-keyed form — DON'T;
+      # values.yaml is authoritative and defines these app keys.
       clientsByHost:
-        '{{ include "bud.ingress.hosts.budadmin" . }}':
-          clientId: budadmin-web
+        budadmin:
           clientSecret: "${BUDADMIN_CS}"
-        '{{ include "bud.ingress.hosts.budcustomer" . }}':
-          clientId: budcustomer-web
+        budcustomer:
           clientSecret: "${BUDCUSTOMER_CS}"
-        '{{ include "bud.ingress.hosts.budplayground" . }}':
-          clientId: budplayground-web
+        budplayground:
           clientSecret: "${BUDPLAYGROUND_CS}"
   budnotify:
     env:
