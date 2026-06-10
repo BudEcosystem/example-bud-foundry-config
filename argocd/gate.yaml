@@ -1,0 +1,97 @@
+# Dependency gate for the Bud Foundry install ordering.
+#
+# WHY THIS EXISTS: cluster-addons and prod-apps are two independent
+# ApplicationSets. An ApplicationSet's health reports only "all applications
+# generated successfully" — NOT whether those generated Applications are
+# Healthy. So applying prod-apps right after cluster-addons does NOT wait for
+# the databases / dapr injector to be ready, and bud pods race ahead:
+#   - pods created before the dapr sidecar-injector webhook is up get NO daprd
+#     sidecar (permanent — never self-heals);
+#   - services crash-loop until Postgres/Valkey/etc. accept connections.
+#
+# This Job polls the addon Applications until all are Synced+Healthy (or times
+# out and fails loudly). Apply it AFTER cluster-addons and `kubectl wait` for it
+# to complete BEFORE applying prod-apps — see README. It is a plain Job (applied
+# by kubectl, not synced by ArgoCD), so it carries no ArgoCD hook annotations.
+#
+# IMAGE NOTE: uses a public kubectl image. For an air-gapped / locked-down
+# install, mirror it into your registry and change `image:` below.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: budfoundry-dep-gate
+  namespace: argocd
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: budfoundry-dep-gate
+  namespace: argocd
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: budfoundry-dep-gate
+  namespace: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: budfoundry-dep-gate
+subjects:
+  - kind: ServiceAccount
+    name: budfoundry-dep-gate
+    namespace: argocd
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: budfoundry-dep-gate
+  namespace: argocd
+spec:
+  # Hard ceiling so a stuck addon (e.g. a Pending PVC on a small cluster)
+  # surfaces as a FAILED gate instead of hanging the install forever.
+  activeDeadlineSeconds: 1200
+  backoffLimit: 0
+  template:
+    spec:
+      serviceAccountName: budfoundry-dep-gate
+      restartPolicy: Never
+      containers:
+        - name: wait-for-addons
+          # Public kubectl image — mirror to your registry for air-gapped installs.
+          image: bitnami/kubectl:1.31
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -uo pipefail
+              # cluster-addons-generated apps that prod-apps depends on.
+              # A missing app (appset still generating) counts as NOT ready.
+              APPS="cert-manager cert-manager-issuer dapr postgres valkey clickhouse kafka mongodb seaweedfs seaweedfs-cluster"
+              NS=argocd
+              deadline=$(( $(date +%s) + 1100 ))
+              echo "Waiting for addon Applications to be Synced+Healthy: $APPS"
+              while true; do
+                pending=""
+                for app in $APPS; do
+                  sync=$(kubectl -n "$NS" get application "$app" -o jsonpath='{.status.sync.status}' 2>/dev/null)
+                  health=$(kubectl -n "$NS" get application "$app" -o jsonpath='{.status.health.status}' 2>/dev/null)
+                  if [ "$sync" != "Synced" ] || [ "$health" != "Healthy" ]; then
+                    pending="$pending $app(${sync:-?}/${health:-missing})"
+                  fi
+                done
+                if [ -z "$pending" ]; then
+                  echo "All addon Applications are Synced+Healthy. Releasing gate."
+                  exit 0
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "TIMEOUT waiting for:$pending" >&2
+                  exit 1
+                fi
+                echo "still waiting for:$pending"
+                sleep 10
+              done
