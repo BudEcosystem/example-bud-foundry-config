@@ -1,0 +1,56 @@
+# argocd/seaweedfs/values.yaml — SeaweedFS config for both the operator app
+# (seaweedfs) and the cluster app (seaweedfs-cluster). Loaded via
+# $values/argocd/seaweedfs/values.yaml by the cluster-addons ApplicationSet.
+#
+# createCluster / seaweedfs-operator.enabled are set per-app by the
+# ApplicationSet (operator app: createCluster=false; cluster app:
+# createCluster=true + operator disabled) — do NOT set them here.
+#
+# The buckets + S3 ingress below only take effect in the cluster app, since
+# they are gated behind createCluster in the chart.
+
+# S3 ingress for EXTERNAL access. budapp/budmodel reach S3 over internal DNS
+# (seaweed-s3.seaweedfs:8333) and do NOT need this — set enabled: false if you
+# don't need an external S3 endpoint. Host must be public on :80 for the
+# HTTP-01 ACME challenge if https: true.
+ingress:
+  enabled: true
+  https: true
+  host: s3.deploy-test.bud.studio
+
+# Buckets consumed by the platform. User "bud" matches
+# externalServices.s3.auth in argocd/bud/values.yaml.
+buckets:
+  bud-novu:
+    reclaimPolicy: Delete
+    versioning: "Off"
+    objectLock: false
+    anonymousRead: false
+    quota:
+      size: 1Gi
+      enforce: true
+    access:
+      - user: bud
+        actions: [Read, Write, List]
+  bud-model-info:
+    reclaimPolicy: Delete
+    versioning: "Off"
+    objectLock: false
+    anonymousRead: false
+    quota:
+      size: 1Gi
+      enforce: true
+    access:
+      - user: bud
+        actions: [Read, Write, List]
+  bud-models-registry:
+    reclaimPolicy: Delete
+    versioning: "Off"
+    objectLock: false
+    anonymousRead: false
+    quota:
+      size: 60Gi
+      enforce: true
+    access:
+      - user: bud
+        actions: [Read, Write, List]
