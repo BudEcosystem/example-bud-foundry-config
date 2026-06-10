@@ -72,7 +72,7 @@ spec:
     metadata:
       name: "{{.name}}"
     spec:
-      project: default
+      project: bud-foundry
       sources:
         # 1) The chart, pulled from the OCI registry (no source-repo access needed).
         #    The two seaweedfs apps override chart/version/params/valueFiles via
