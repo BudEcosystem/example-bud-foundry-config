@@ -19,6 +19,11 @@
 #   1. Fork this repo (or copy it into your own git repo).
 #   2. Set `repoURL` on the `ref: values` source to YOUR fork's URL.
 #   3. Fill in argocd/bud/values.yaml etc. with your settings.
+#
+# NOTE: all per-app SeaweedFS specifics live in the templatePatch block at the
+# bottom, NOT inline in `template` — bare {{ if }} control flow inside a YAML
+# list breaks `kubectl apply` (the ApplicationSet renders fine, but kubectl
+# parses raw YAML first). templatePatch is an opaque string, so it stays valid.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -58,6 +63,7 @@ spec:
           # succeeds and PostSync patches the caBundle; "seaweedfs-cluster"
           # (operator disabled, createCluster=true) then has its CR admitted.
           # Both apps use the SAME chart + config folder (argocd/seaweedfs/).
+          # See the templatePatch block below for the per-app wiring.
           - name: seaweedfs
             namespace: seaweedfs
           - name: seaweedfs-cluster
@@ -69,9 +75,48 @@ spec:
       project: default
       sources:
         # 1) The chart, pulled from the OCI registry (no source-repo access needed).
-        #    The two seaweedfs apps reuse the "seaweedfs" chart (v0.2.0+, which
-        #    adds the createCluster toggle) and the argocd/seaweedfs/ config.
-        {{- if or (eq .name "seaweedfs") (eq .name "seaweedfs-cluster") }}
+        #    The two seaweedfs apps override chart/version/params/valueFiles via
+        #    templatePatch below (they reuse the "seaweedfs" chart + config).
+        - repoURL: registry.bud.studio/charts
+          chart: "{{.name}}"
+          targetRevision: "0.1.0" # dependency charts are versioned at 0.1.0
+          helm:
+            releaseName: "{{.name}}"
+            # $values resolves to the ROOT of the ref source below, so the path
+            # includes the `argocd/` folder these files live in. secrets.yaml is
+            # produced by scripts/gen-secrets.sh for the stateful addons
+            # (postgres/clickhouse/kafka/mongodb/valkey); addons without one
+            # (dapr, cert-manager) skip it via ignoreMissingValueFiles.
+            valueFiles:
+              - "$values/argocd/{{.name}}/values.yaml"
+              - "$values/argocd/{{.name}}/secrets.yaml"
+            ignoreMissingValueFiles: true
+        # 2) This config repo. POINT repoURL AT YOUR FORK.
+        - repoURL: https://github.com/BudEcosystem/example-bud-foundry-config
+          targetRevision: main
+          ref: values
+      destination:
+        server: "https://kubernetes.default.svc"
+        namespace: "{{.namespace}}"
+      syncPolicy:
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+        automated:
+          selfHeal: true
+  # Per-app overrides for the SeaweedFS split. templatePatch is applied as an
+  # RFC 7386 JSON Merge Patch: a null key DELETES it and lists are REPLACED
+  # wholesale. So for the 12 non-seaweedfs apps the patch MUST render to exactly
+  # `{}` (a no-op) — emitting `spec.sources: null` (or empty) would delete their
+  # sources. Everything is keyed off .name (always present), safe under
+  # goTemplateOptions missingkey=error.
+  templatePatch: |
+    {{- if or (eq .name "seaweedfs") (eq .name "seaweedfs-cluster") }}
+    spec:
+      # The whole sources list is REPLACED for the two seaweedfs apps: they use
+      # the seaweedfs chart v0.2.0 (createCluster toggle) + argocd/seaweedfs/
+      # config; releaseName stays "seaweedfs" so resource names are stable.
+      sources:
         - repoURL: registry.bud.studio/charts
           chart: "seaweedfs"
           targetRevision: "0.2.0"
@@ -94,29 +139,9 @@ spec:
               - "$values/argocd/seaweedfs/values.yaml"
               - "$values/argocd/seaweedfs/secrets.yaml"
             ignoreMissingValueFiles: true
-        {{- else }}
-        - repoURL: registry.bud.studio/charts
-          chart: "{{.name}}"
-          targetRevision: "0.1.0" # dependency charts are versioned at 0.1.0
-          helm:
-            releaseName: "{{.name}}"
-            # $values resolves to the ROOT of the ref source below, so the path
-            # includes the `argocd/` folder these files live in. secrets.yaml is
-            # produced by scripts/gen-secrets.sh for the stateful addons
-            # (postgres/clickhouse/kafka/mongodb/valkey); addons without one
-            # (dapr, cert-manager) skip it via ignoreMissingValueFiles.
-            valueFiles:
-              - "$values/argocd/{{.name}}/values.yaml"
-              - "$values/argocd/{{.name}}/secrets.yaml"
-            ignoreMissingValueFiles: true
-        {{- end }}
-        # 2) This config repo. POINT repoURL AT YOUR FORK.
         - repoURL: https://github.com/BudEcosystem/example-bud-foundry-config
           targetRevision: main
           ref: values
-      destination:
-        server: "https://kubernetes.default.svc"
-        namespace: "{{.namespace}}"
       {{- if eq .name "seaweedfs" }}
       # ArgoCD does not own the webhook caBundle (it is patched in by the
       # operator's PostSync cert job); ignore it so selfHeal never churns it.
@@ -132,9 +157,6 @@ spec:
           jqPathExpressions:
             - ".webhooks[].clientConfig.caBundle"
       {{- end }}
-      syncPolicy:
-        syncOptions:
-          - CreateNamespace=true
-          - ServerSideApply=true
-        automated:
-          selfHeal: true
+    {{- else }}
+    {}
+    {{- end }}
