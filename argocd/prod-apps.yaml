@@ -27,7 +27,7 @@ spec:
       annotations:
         argocd.argoproj.io/sync-wave: "10" # apply after the addons
     spec:
-      project: default
+      project: bud-foundry
       destination:
         server: "https://kubernetes.default.svc"
         namespace: "{{.name}}"
