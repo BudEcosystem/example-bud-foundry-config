@@ -1,0 +1,14 @@
+# argocd/clickhouse/values.yaml — single-node ClickHouse sizing.
+#
+# WHY replicaCount: 1 matters (not just resource savings): with >1 replica the
+# chart emits the db-create DDL with `ON CLUSTER 'cluster'`, which needs
+# ClickHouse Keeper to have quorum. On a cold start the db-create job races
+# Keeper, the `CREATE USER ... ON CLUSTER` fails with KEEPER_EXCEPTION, the job
+# script prints "Success" anyway and never retries — so the `bud` user is never
+# created and budmetrics crash-loops on ClickHouse AUTHENTICATION_FAILED.
+#
+# replicaCount: 1 drops `ON CLUSTER`, so user/grants are plain local statements
+# (no Keeper dependency). This matches the known-good client deployment
+# (infra/appsets/client-intel-nex-labs.yaml, which loads values.minimal.yaml).
+# The 'bud' user/password/databases come from secrets.yaml (generated).
+replicaCount: 1
