@@ -30,36 +30,47 @@ spec:
   generators:
     - list:
         elements:
+          # Each element pins its chart version; targetRevision below renders
+          # {{.version}}. Dependency charts are at 0.1.0; seaweedfs is bumped to
+          # 0.4.0 (see its note).
           - name: dapr
             namespace: dapr-system
+            version: "0.1.0"
           - name: cert-manager
             namespace: cert-manager
+            version: "0.1.0"
           # Creates the letsencrypt-http01 ClusterIssuer that cert-manager's
           # ingress-shim defaults to. REQUIRED when ingress.https=internal — without
           # it every *-acme-cert stays Ready=False ("ClusterIssuer letsencrypt-http01
           # not found"). HTTP-01 solver via traefik, so hosts must be public on :80.
           - name: cert-manager-issuer
             namespace: cert-manager
+            version: "0.1.0"
           - name: postgres
             namespace: postgres
+            version: "0.1.0"
           - name: clickhouse
             namespace: clickhouse
+            version: "0.1.0"
           - name: kafka
             namespace: kafka
+            version: "0.1.0"
           - name: mongodb
             namespace: mongodb
+            version: "0.1.0"
           - name: valkey
             namespace: valkey
-          # TEMP REVERT: plain single-app seaweedfs on chart 0.1.0 — identical to
-          # the master-branch deployment (operator + Seaweed CR + buckets in one
-          # app, operator 1.0.19, no S3Identity). The operator/cluster split that
-          # works around the cold-start caBundle deadlock is removed to A/B test
-          # whether the deadlock reproduces here (other deployments never hit it).
-          # NOTE: 0.1.0 has no S3Identity template, so model-upload S3 auth may
-          # 403 — that is expected on 0.1.0. To restore the fix, re-add a
-          # `seaweedfs-cluster` element + the templatePatch override below.
+            version: "0.1.0"
+          # seaweedfs 0.4.0: single app (createCluster=true is the chart default,
+          # so operator + Seaweed CR + buckets + S3Identity all render together).
+          # 0.4.0 carries the s3identity.yaml template + operator 1.0.22 (which has
+          # the S3 IAM controllers); 0.1.0 lacked both, so the `bud` access key was
+          # never registered and model-upload S3 auth failed with InvalidAccessKeyId.
+          # The `identities.bud` creds in argocd/seaweedfs/secrets.yaml are consumed
+          # by this version to register the key.
           - name: seaweedfs
             namespace: seaweedfs
+            version: "0.4.0"
   template:
     metadata:
       name: "{{.name}}"
@@ -69,7 +80,7 @@ spec:
         # 1) The chart, pulled from the OCI registry (no source-repo access needed).
         - repoURL: registry.bud.studio/charts
           chart: "{{.name}}"
-          targetRevision: "0.1.0" # dependency charts are versioned at 0.1.0
+          targetRevision: "{{.version}}" # per-element version (see generator list)
           helm:
             releaseName: "{{.name}}"
             # $values resolves to the ROOT of the ref source below, so the path
@@ -94,7 +105,6 @@ spec:
           - ServerSideApply=true
         automated:
           selfHeal: true
-  # TEMP REVERT: no per-app overrides — seaweedfs now uses the base source like
-  # every other addon (chart 0.1.0 from the registry + argocd/seaweedfs/ config),
-  # matching the master-branch single-app deployment. (The split/version-override
-  # templatePatch was removed for the cold-start A/B test.)
+  # Per-element chart versions are set via the `version` field on each generator
+  # element (rendered by targetRevision: {{.version}}). seaweedfs is on 0.4.0 for
+  # the S3Identity + operator 1.0.22 fix; all other addons stay at 0.1.0.
