@@ -25,7 +25,7 @@ defaultReplication: "000"
 ingress:
   enabled: true
   https: true
-  host: s3.deploy-test.bud.studio
+  host: s3.example.com
 
 # Buckets consumed by the platform. User "bud" matches
 # externalServices.s3.auth in argocd/bud/values.yaml.

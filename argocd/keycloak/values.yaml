@@ -16,20 +16,18 @@
 # from it. `host` sets BOTH the Ingress rule AND the Keycloak CR's KC_HOSTNAME,
 # so they always match. TLS issues via the same cert-manager/letsencrypt-http01
 # path as the bud hosts (tls-acme), so auth.<root> must be public on :80.
-# ⚠️ Replace deploy-test.bud.studio with YOUR ingress root, and set
+# ⚠️ Replace example.com with YOUR ingress root, and set
 # externalServices.oidc.url in argocd/bud/values.yaml to the SAME URL +/realms/bud-keycloak.
 ingress:
   enabled: true
   https: true
-  host: "auth2.deploy-test.bud.studio"
+  host: "auth.example.com"
 
 # Custom Keycloak image with the Bud login theme baked in. The stock Keycloak
 # image has no "bud" theme, so without this the login page is the default
 # Keycloak look. imagePullSecrets references the secret the chart creates from
 # `registries` in secrets.yaml. (Pair with realmImport.themes.login: bud below.)
-# TEMP: pinned to :nightly to pick up the latest login theme changes. Switch
-# back to a released tag (e.g. :0.1.0) once the theme is finalized.
-image: registry.bud.studio/runtime/keycloak-budtheme:nightly
+image: registry.bud.studio/runtime/keycloak-budtheme:0.2.0
 imagePullSecrets:
   - name: registry.bud.studio
 
@@ -45,15 +43,15 @@ realmImport:
   realm: "bud-keycloak" # budapp's issuer is hardcoded to /realms/bud-keycloak — do not change
   keycloakCRName: keycloak
   # All frontend clients redirect to budapp's BFF callback. app.<root> = budapp host.
-  # ⚠️ Replace deploy-test.bud.studio with YOUR global.ingress.hosts.root.
+  # ⚠️ Replace example.com with YOUR global.ingress.hosts.root.
   defaultCallbackUrls:
-    - "https://app.deploy-test.bud.studio/auth/redirect/callback"
+    - "https://app.example.com/auth/redirect/callback"
   # REQUIRED: without postLogoutUrls the chart renders client `attributes: null`,
   # which the KeycloakRealmImport CRD rejects ("must be of type object"). Set it
   # to your frontend base URLs. ⚠️ use YOUR ingress root.
   postLogoutUrls:
-    - "https://app.deploy-test.bud.studio"
-    - "https://admin.deploy-test.bud.studio"
+    - "https://app.example.com"
+    - "https://admin.example.com"
   webOrigins: ["+"]
   realmRoles:
     - super_admin

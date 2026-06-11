@@ -9,11 +9,11 @@ global:
     hosts:
       # Set ONLY this. budadmin/budapp/budgateway/... hostnames are derived from
       # root by the chart helpers (admin.<root>, gateway.<root>, app.<root>, ...).
-      # Temporary test domain; a *.deploy-test.bud.studio wildcard cert covers the
-      # single-level sub-hosts. NOTE: novu uses two-level hosts (api.novu.<root>,
-      # ws.novu.<root>) which a single-level wildcard does NOT cover — set
-      # global.ingress.hosts.novuapi / novuws explicitly if you need TLS on those.
-      root: "deploy-test.bud.studio"
+      # A *.<root> wildcard cert covers the single-level sub-hosts. NOTE: novu
+      # uses two-level hosts (api.novu.<root>, ws.novu.<root>) which a single-level
+      # wildcard does NOT cover — set global.ingress.hosts.novuapi / novuws
+      # explicitly if you need TLS on those.
+      root: "example.com"
 
 ingress:
   enabled: true
@@ -50,7 +50,7 @@ storage:
 # Default in the chart is the placeholder http://auth.bud.lan/... — override it:
 externalServices:
   oidc:
-    url: "https://auth2.deploy-test.bud.studio/realms/bud-keycloak"
+    url: "https://auth.example.com/realms/bud-keycloak"
 
 # Optional: pin replica counts / HPA bounds to your capacity.
 # microservices:
