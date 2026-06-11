@@ -21,7 +21,7 @@
 ingress:
   enabled: true
   https: true
-  host: "auth.deploy-test.bud.studio"
+  host: "auth2.deploy-test.bud.studio"
 
 # Custom Keycloak image with the Bud login theme baked in. The stock Keycloak
 # image has no "bud" theme, so without this the login page is the default

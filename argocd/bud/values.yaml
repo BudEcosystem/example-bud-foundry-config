@@ -50,7 +50,7 @@ storage:
 # Default in the chart is the placeholder http://auth.bud.lan/... — override it:
 externalServices:
   oidc:
-    url: "https://auth.deploy-test.bud.studio/realms/bud-keycloak"
+    url: "https://auth2.deploy-test.bud.studio/realms/bud-keycloak"
 
 # Optional: pin replica counts / HPA bounds to your capacity.
 # microservices:
