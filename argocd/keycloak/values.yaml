@@ -60,6 +60,17 @@ realmImport:
   # Use the Bud login theme (shipped in the keycloak-budtheme image above).
   themes:
     login: bud
+  # Session / token lifespans (seconds). Mirrors the bud dev realm. Without
+  # these, the realm uses Keycloak's short defaults (30-min SSO session, 5-min
+  # access token), so users get logged out / tokens expire quickly.
+  # NOTE: KeycloakRealmImport is one-shot (skip-if-exists) — these apply on a
+  # FRESH realm import. To change them on an already-imported realm, re-import
+  # (drop the realm DB + delete the import CR) or edit Realm Settings in the
+  # Keycloak admin UI (Sessions / Tokens tabs).
+  sessions:
+    ssoSessionIdleTimeout: 604800 # 7 days — idle / refresh window (resets on refresh)
+    ssoSessionMaxLifespan: 604800 # 7 days — hard session cap regardless of activity
+    accessTokenLifespan: 1800 # 30 min — access-token lifespan
   # Super-user (users:) and OAuth clients (clients:) carry secrets, so they are
   # defined in argocd/keycloak/secrets.yaml — NOT here. clientId values there:
   # budadmin-web, budcustomer-web, budplayground-web, mcpgateway.
