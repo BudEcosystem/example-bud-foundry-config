@@ -27,7 +27,9 @@ ingress:
 # image has no "bud" theme, so without this the login page is the default
 # Keycloak look. imagePullSecrets references the secret the chart creates from
 # `registries` in secrets.yaml. (Pair with realmImport.themes.login: bud below.)
-image: registry.bud.studio/runtime/keycloak-budtheme:0.1.0
+# TEMP: pinned to :nightly to pick up the latest login theme changes. Switch
+# back to a released tag (e.g. :0.1.0) once the theme is finalized.
+image: registry.bud.studio/runtime/keycloak-budtheme:nightly
 imagePullSecrets:
   - name: registry.bud.studio
 
