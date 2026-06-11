@@ -19,11 +19,6 @@
 #   1. Fork this repo (or copy it into your own git repo).
 #   2. Set `repoURL` on the `ref: values` source to YOUR fork's URL.
 #   3. Fill in argocd/bud/values.yaml etc. with your settings.
-#
-# NOTE: all per-app SeaweedFS specifics live in the templatePatch block at the
-# bottom, NOT inline in `template` — bare {{ if }} control flow inside a YAML
-# list breaks `kubectl apply` (the ApplicationSet renders fine, but kubectl
-# parses raw YAML first). templatePatch is an opaque string, so it stays valid.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -55,18 +50,15 @@ spec:
             namespace: mongodb
           - name: valkey
             namespace: valkey
-          # SeaweedFS is split into two Applications to break a cold-start
-          # deadlock: the operator's admission webhook rejects the Seaweed CR
-          # until its caBundle is patched, but that patch runs as a PostSync
-          # hook that only fires after a successful Sync. The "seaweedfs" app
-          # deploys the operator alone (createCluster=false) so its Sync
-          # succeeds and PostSync patches the caBundle; "seaweedfs-cluster"
-          # (operator disabled, createCluster=true) then has its CR admitted.
-          # Both apps use the SAME chart + config folder (argocd/seaweedfs/).
-          # See the templatePatch block below for the per-app wiring.
+          # TEMP REVERT: plain single-app seaweedfs on chart 0.1.0 — identical to
+          # the master-branch deployment (operator + Seaweed CR + buckets in one
+          # app, operator 1.0.19, no S3Identity). The operator/cluster split that
+          # works around the cold-start caBundle deadlock is removed to A/B test
+          # whether the deadlock reproduces here (other deployments never hit it).
+          # NOTE: 0.1.0 has no S3Identity template, so model-upload S3 auth may
+          # 403 — that is expected on 0.1.0. To restore the fix, re-add a
+          # `seaweedfs-cluster` element + the templatePatch override below.
           - name: seaweedfs
-            namespace: seaweedfs
-          - name: seaweedfs-cluster
             namespace: seaweedfs
   template:
     metadata:
@@ -75,8 +67,6 @@ spec:
       project: bud-foundry
       sources:
         # 1) The chart, pulled from the OCI registry (no source-repo access needed).
-        #    The two seaweedfs apps override chart/version/params/valueFiles via
-        #    templatePatch below (they reuse the "seaweedfs" chart + config).
         - repoURL: registry.bud.studio/charts
           chart: "{{.name}}"
           targetRevision: "0.1.0" # dependency charts are versioned at 0.1.0
@@ -104,59 +94,7 @@ spec:
           - ServerSideApply=true
         automated:
           selfHeal: true
-  # Per-app overrides for the SeaweedFS split. templatePatch is applied as an
-  # RFC 7386 JSON Merge Patch: a null key DELETES it and lists are REPLACED
-  # wholesale. So for the 12 non-seaweedfs apps the patch MUST render to exactly
-  # `{}` (a no-op) — emitting `spec.sources: null` (or empty) would delete their
-  # sources. Everything is keyed off .name (always present), safe under
-  # goTemplateOptions missingkey=error.
-  templatePatch: |
-    {{- if or (eq .name "seaweedfs") (eq .name "seaweedfs-cluster") }}
-    spec:
-      # The whole sources list is REPLACED for the two seaweedfs apps: they use
-      # the seaweedfs chart v0.2.0 (createCluster toggle) + argocd/seaweedfs/
-      # config; releaseName stays "seaweedfs" so resource names are stable.
-      sources:
-        - repoURL: registry.bud.studio/charts
-          chart: "seaweedfs"
-          targetRevision: "0.4.0"
-          helm:
-            releaseName: "seaweedfs"
-            {{- if eq .name "seaweedfs-cluster" }}
-            # Cluster resources only; reuse the operator app's CRDs + webhook.
-            parameters:
-              - name: "createCluster"
-                value: "true"
-              - name: "seaweedfs-operator.enabled"
-                value: "false"
-            {{- else }}
-            # Operator only; the Seaweed CR ships in seaweedfs-cluster.
-            parameters:
-              - name: "createCluster"
-                value: "false"
-            {{- end }}
-            valueFiles:
-              - "$values/argocd/seaweedfs/values.yaml"
-              - "$values/argocd/seaweedfs/secrets.yaml"
-            ignoreMissingValueFiles: true
-        - repoURL: https://github.com/BudEcosystem/example-bud-foundry-config
-          targetRevision: main
-          ref: values
-      {{- if eq .name "seaweedfs" }}
-      # ArgoCD does not own the webhook caBundle (it is patched in by the
-      # operator's PostSync cert job); ignore it so selfHeal never churns it.
-      ignoreDifferences:
-        - group: admissionregistration.k8s.io
-          kind: MutatingWebhookConfiguration
-          name: seaweedfs-seaweedfs-operator-mutating-webhook-configuration
-          jqPathExpressions:
-            - ".webhooks[].clientConfig.caBundle"
-        - group: admissionregistration.k8s.io
-          kind: ValidatingWebhookConfiguration
-          name: seaweedfs-seaweedfs-operator-validating-webhook-configuration
-          jqPathExpressions:
-            - ".webhooks[].clientConfig.caBundle"
-      {{- end }}
-    {{- else }}
-    {}
-    {{- end }}
+  # TEMP REVERT: no per-app overrides — seaweedfs now uses the base source like
+  # every other addon (chart 0.1.0 from the registry + argocd/seaweedfs/ config),
+  # matching the master-branch single-app deployment. (The split/version-override
+  # templatePatch was removed for the cold-start A/B test.)
