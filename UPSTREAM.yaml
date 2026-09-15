@@ -1,0 +1,4 @@
+repository: https://github.com/BudEcosystem/infra.git
+commit: 7d512146093aa77c8186aa330a27991add2d59ae
+syncedAt: "2026-09-16"
+scope: customer-neutral shared values used by budctl

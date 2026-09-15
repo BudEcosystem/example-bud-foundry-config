@@ -1,13 +1,9 @@
-# Public example repo: never commit real secrets here. Only secrets.example.yaml
-# (placeholders) is tracked.
-#
-# IN YOUR PRIVATE FORK this is a trap: ArgoCD's $values source delivers config
-# via GIT, so secrets.yaml MUST be committed for the install to work. Either
-# `git add -f argocd/**/secrets.yaml`, or delete these lines in your fork.
-# (See README "Generate your secrets".)
-secrets.yaml
-**/secrets.yaml
-*.secret.yaml
-secrets.enc.yaml
+# Installer state and recovery material must remain outside Git.
 *.agekey
+install-state.age
+install-state.age.*
 *.pem
+
+# Environment secret files are expected to be SOPS-encrypted and committed.
+# Do not add a broad secrets*.yaml ignore rule here: that can make an ArgoCD
+# installation silently omit the generated credentials.
