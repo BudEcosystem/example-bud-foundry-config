@@ -1,0 +1,24 @@
+# Illustrative output from budctl. Do not apply this file as-is.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bootstrap
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: "https://github.com/example-org/bud-foundry-config.git"
+    targetRevision: "main"
+    path: appsets
+    directory:
+      include: "example.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - Prune=confirm
+    automated:
+      enabled: false
+      selfHeal: true
