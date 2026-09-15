@@ -26,6 +26,8 @@ values/
 ├── postgres/        # Bud service databases and poolers
 ├── seaweedfs/       # Bud buckets and S3 policy
 └── valkey/           # replication, persistence and keyspace notifications
+templates/
+└── appset.yaml.tmpl  # canonical component inventory and ApplicationSet
 ```
 
 The environment-specific files are intentionally absent. During installation,
@@ -61,8 +63,9 @@ budctl install --plan --no-prompt \
   --admin-email admin@example.com
 ```
 
-The installer copies only its explicit allow-list of shared files from this
-repository. Adding a customer overlay here does not make budctl distribute it.
+The installer copies only its explicit allow-list of shared files and renders
+`templates/appset.yaml.tmpl` into the target repository. Adding a customer
+overlay here does not make budctl distribute it.
 
 ## Maintaining the template
 
