@@ -16,12 +16,7 @@ ingress:
   https: internal
   isTraefik: true
 microservices:
-  askbud:
-    enabled: true
-  budadmin:
-    enabled: true
   budapp:
-    enabled: true
     redirectFlow:
       clientsByHost:
         budadmin:
@@ -39,41 +34,9 @@ microservices:
             - '{{ include "bud.ingress.hosts.budplayground" . }}'
           allowedReturnUrlOrigins:
             - '{{ include "bud.ingress.url.budplayground" . }}'
-  budcache:
-    enabled: true
-  budcluster:
-    enabled: true
   budcodeinterpreter:
     enabled: true
-  budcustomer:
-    enabled: true
-  buddoc:
-    enabled: true
   budeval:
-    enabled: true
-  budevent:
-    enabled: true
-  budgateway:
-    enabled: true
-  budmetrics:
-    enabled: true
-  budmodel:
-    enabled: true
-  budnotify:
-    enabled: true
-  budpipeline:
-    enabled: true
-  budplayground:
-    enabled: true
-  budprompt:
-    enabled: true
-  budsentinel:
-    enabled: true
-  budsim:
-    enabled: true
-  mcpgateway:
-    enabled: true
-  semanticRouter:
     enabled: true
 storage:
   budmodelRegistry:
