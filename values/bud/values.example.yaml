@@ -34,10 +34,6 @@ microservices:
             - '{{ include "bud.ingress.hosts.budplayground" . }}'
           allowedReturnUrlOrigins:
             - '{{ include "bud.ingress.url.budplayground" . }}'
-  budcodeinterpreter:
-    enabled: true
-  budeval:
-    enabled: true
 storage:
   budmodelRegistry:
     className: standard
