@@ -4,8 +4,8 @@ buckets:
     quota:
       size: 300Gi
 ingress:
-  className: nginx
+  className: traefik
   enabled: true
   host: s3.bud.example.com
   https: true
-  isTraefik: false
+  isTraefik: true
