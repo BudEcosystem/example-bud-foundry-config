@@ -1,10 +1,7 @@
 # Bud Foundry configuration template
 
 This repository is the customer-neutral base used by `budctl install` when it
-initializes an empty GitOps repository. It follows the current layout and
-shared deployment values from
-[`BudEcosystem/infra`](https://github.com/BudEcosystem/infra), without copying
-customer names, deployed environment overlays, or credentials.
+initializes an empty GitOps repository.
 
 Do not apply this repository directly. The shared values contain development
 placeholders where the charts require a value, and they are deliberately
@@ -60,7 +57,7 @@ credentials.
 Run the guided installer:
 
 ```bash
-budctl install
+curl -fsSL https://get.budecosystem.com/install.sh | sh
 ```
 
 For a non-interactive preview:
@@ -82,17 +79,3 @@ The installer copies only its explicit allow-list of shared files and renders
 `templates/appset.yaml.tmpl` into the target repository. Adding a customer
 overlay—or the illustrative `example` files—does not make budctl distribute it.
 
-## Maintaining the template
-
-When the shared runtime values change in `BudEcosystem/infra`, copy only the
-customer-neutral `values.*budruntime.yaml`, minimal profiles, and common
-component values. Never copy:
-
-- `apps/` or `appsets/` from a deployed environment;
-- `values.<customer>.yaml` or `secrets.<customer>.yaml`;
-- `.sops.yaml` recipients or private age identities;
-- customer domains, repository URLs, credentials, capacity overrides, or
-  hardware-specific service-disable flags.
-
-After updating this repository, budctl should pin the resulting commit rather
-than following a moving branch.
