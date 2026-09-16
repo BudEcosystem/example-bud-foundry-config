@@ -37,8 +37,8 @@ templates/
 ```
 
 The `example` files are documentation, not installation input. They use a
-non-functional repository URL and deliberately omit secret files. During an
-installation, budctl generates:
+non-functional repository URL and include every generated public overlay while
+deliberately omitting secret files. During an installation, budctl generates:
 
 - `apps/<environment>.yaml` and `appsets/<environment>.yaml`;
 - `values/<component>/values.<environment>.yaml`;
