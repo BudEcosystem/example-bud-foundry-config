@@ -129,13 +129,13 @@ spec:
             valueFiles:
               - "$values/values/bud/values.example.yaml"
               - "$values/values/bud/secrets.example.yaml"
-          - name: opensandbox
-            namespace: opensandbox-system
-            gitRepoURL: https://github.com/BudEcosystem/bud-runtime.git
-            gitRevision: "adc5eb4518b820e3452512fcf30fe4cb2e1da524"
-            gitPath: infra/charts/opensandbox
-            valueFiles:
-              - "$values/values/opensandbox/secrets.example.yaml"
+          # - name: opensandbox
+          #   namespace: opensandbox-system
+          #   gitRepoURL: https://github.com/BudEcosystem/bud-runtime.git
+          #   gitRevision: "adc5eb4518b820e3452512fcf30fe4cb2e1da524"
+          #   gitPath: infra/charts/opensandbox
+          #   valueFiles:
+          #     - "$values/values/opensandbox/secrets.example.yaml"
   template:
     metadata:
       name: "example-{{.name}}"
