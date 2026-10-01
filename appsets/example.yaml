@@ -13,7 +13,6 @@ spec:
         elements:
           - name: argocd
             namespace: argocd
-            gitPath: ""
             repoURL: registry.bud.studio/charts
             chart: argocd
             targetRevision: "0.1.1"
@@ -23,15 +22,13 @@ spec:
               - "$values/values/argocd/values.example.yaml"
           - name: dapr
             namespace: dapr-system
-            gitPath: ""
             repoURL: https://dapr.github.io/helm-charts
             chart: dapr
-            targetRevision: "1.17.5"
+            targetRevision: "1.18.4"
             valueFiles:
               - "$values/values/dapr/values.yaml"
           - name: kafka
             namespace: kafka
-            gitPath: ""
             repoURL: registry.bud.studio/charts
             chart: kafka
             targetRevision: "0.1.1"
@@ -41,7 +38,6 @@ spec:
               - "$values/values/kafka/secrets.example.yaml"
           - name: mongodb
             namespace: mongodb
-            gitPath: ""
             repoURL: registry.bud.studio/charts
             chart: mongodb
             targetRevision: "0.1.1"
@@ -51,7 +47,6 @@ spec:
               - "$values/values/mongodb/secrets.example.yaml"
           - name: cert-manager
             namespace: cert-manager
-            gitPath: ""
             repoURL: registry.bud.studio/charts
             chart: cert-manager
             targetRevision: "0.1.3"
@@ -60,7 +55,6 @@ spec:
               - "$values/values/cert-manager/values.selfsigned-ca.yaml"
           - name: kyverno
             namespace: kyverno
-            gitPath: ""
             repoURL: registry.bud.studio/charts
             chart: kyverno
             targetRevision: "0.0.2"
@@ -69,7 +63,6 @@ spec:
               - "$values/values/kyverno/values.budruntime.yaml"
           - name: clickhouse
             namespace: clickhouse
-            gitPath: ""
             repoURL: registry.bud.studio/charts
             chart: clickhouse
             targetRevision: "0.1.1"
@@ -79,7 +72,6 @@ spec:
               - "$values/values/clickhouse/secrets.example.yaml"
           - name: postgres
             namespace: postgres
-            gitPath: ""
             repoURL: registry.bud.studio/charts
             chart: postgres
             targetRevision: "0.1.1"
@@ -90,10 +82,9 @@ spec:
               - "$values/values/postgres/secrets.example.yaml"
           - name: seaweedfs
             namespace: seaweedfs
-            gitPath: ""
             repoURL: registry.bud.studio/charts
             chart: seaweedfs
-            targetRevision: "0.1.1"
+            targetRevision: "0.1.2"
             valueFiles:
               - "example.minimal.yaml"
               - "$values/values/seaweedfs/values.budruntime.yaml"
@@ -101,7 +92,6 @@ spec:
               - "$values/values/seaweedfs/secrets.example.yaml"
           - name: valkey
             namespace: valkey
-            gitPath: ""
             repoURL: registry-1.docker.io/cloudpirates
             chart: valkey
             targetRevision: "0.21.4"
@@ -112,7 +102,6 @@ spec:
               - "$values/values/valkey/secrets.example.yaml"
           - name: keycloak
             namespace: keycloak
-            gitPath: ""
             repoURL: registry.bud.studio/charts
             chart: keycloak
             targetRevision: "0.2.1"
@@ -122,20 +111,19 @@ spec:
               - "$values/values/keycloak/secrets.example.yaml"
           - name: bud
             namespace: bud
-            gitPath: ""
             repoURL: registry.bud.studio/charts
             chart: bud
-            targetRevision: "1.2.8"
+            targetRevision: "1.3.0"
             valueFiles:
               - "$values/values/bud/values.example.yaml"
               - "$values/values/bud/secrets.example.yaml"
-          # - name: opensandbox
-          #   namespace: opensandbox-system
-          #   gitRepoURL: https://github.com/BudEcosystem/bud-runtime.git
-          #   gitRevision: "adc5eb4518b820e3452512fcf30fe4cb2e1da524"
-          #   gitPath: infra/charts/opensandbox
-          #   valueFiles:
-          #     - "$values/values/opensandbox/secrets.example.yaml"
+          - name: opensandbox
+            namespace: opensandbox-system
+            repoURL: registry.bud.studio/charts
+            chart: opensandbox
+            targetRevision: "0.0.1"
+            valueFiles:
+              - "$values/values/opensandbox/secrets.example.yaml"
   template:
     metadata:
       name: "example-{{.name}}"
@@ -154,15 +142,6 @@ spec:
   templatePatch: |
     spec:
       sources:
-        {{- if .gitPath }}
-        - repoURL: {{ .gitRepoURL | quote }}
-          targetRevision: {{ .gitRevision | quote }}
-          path: {{ .gitPath | quote }}
-          helm:
-            releaseName: "{{.name}}"
-            valueFiles:
-              {{- .valueFiles | toYaml | nindent 12 }}
-        {{- else }}
         - repoURL: {{ .repoURL | quote }}
           chart: {{ .chart | quote }}
           targetRevision: {{ .targetRevision | quote }}
@@ -170,7 +149,6 @@ spec:
             releaseName: "{{.name}}"
             valueFiles:
               {{- .valueFiles | toYaml | nindent 12 }}
-        {{- end }}
         - repoURL: "https://github.com/example-org/bud-foundry-config.git"
           targetRevision: "main"
           ref: values
