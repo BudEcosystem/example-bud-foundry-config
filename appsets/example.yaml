@@ -114,7 +114,7 @@ spec:
     metadata:
       name: "bud-{{.name}}"
     spec:
-      project: bud
+      project: example
       destination:
         server: https://kubernetes.default.svc
         namespace: "{{.namespace}}"
