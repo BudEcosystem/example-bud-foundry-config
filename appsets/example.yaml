@@ -35,7 +35,6 @@ spec:
             valueFiles:
               - "example.minimal.yaml"
               - "$values/values/kafka/values.budruntime.yaml"
-              - "$values/values/kafka/secrets.example.yaml"
           - name: mongodb
             namespace: mongodb
             repoURL: registry.bud.studio/charts
@@ -44,7 +43,6 @@ spec:
             valueFiles:
               - "example.minimal.yaml"
               - "$values/values/mongodb/values.budruntime.yaml"
-              - "$values/values/mongodb/secrets.example.yaml"
           - name: cert-manager
             namespace: cert-manager
             repoURL: registry.bud.studio/charts
@@ -69,7 +67,6 @@ spec:
             valueFiles:
               - "example.minimal.yaml"
               - "$values/values/clickhouse/values.budruntime.yaml"
-              - "$values/values/clickhouse/secrets.example.yaml"
           - name: postgres
             namespace: postgres
             repoURL: registry.bud.studio/charts
@@ -79,7 +76,6 @@ spec:
               - "example.minimal.yaml"
               - "$values/values/postgres/values.budruntime.yaml"
               - "$values/values/postgres/values.minimal.budruntime.yaml"
-              - "$values/values/postgres/secrets.example.yaml"
           - name: seaweedfs
             namespace: seaweedfs
             repoURL: registry.bud.studio/charts
@@ -89,7 +85,6 @@ spec:
               - "example.minimal.yaml"
               - "$values/values/seaweedfs/values.budruntime.yaml"
               - "$values/values/seaweedfs/values.example.yaml"
-              - "$values/values/seaweedfs/secrets.example.yaml"
           - name: valkey
             namespace: valkey
             repoURL: registry-1.docker.io/cloudpirates
@@ -99,7 +94,6 @@ spec:
               - "$values/values/valkey/values.yaml"
               - "$values/values/valkey/values.minimal.yaml"
               - "$values/values/valkey/values.budruntime.yaml"
-              - "$values/values/valkey/secrets.example.yaml"
           - name: keycloak
             namespace: keycloak
             repoURL: registry.bud.studio/charts
@@ -117,18 +111,11 @@ spec:
             valueFiles:
               - "$values/values/bud/values.example.yaml"
               - "$values/values/bud/secrets.example.yaml"
-          - name: opensandbox
-            namespace: opensandbox-system
-            repoURL: registry.bud.studio/charts
-            chart: opensandbox
-            targetRevision: "0.0.1"
-            valueFiles:
-              - "$values/values/opensandbox/secrets.example.yaml"
   template:
     metadata:
-      name: "example-{{.name}}"
+      name: "bud-{{.name}}"
     spec:
-      project: example
+      project: bud
       destination:
         server: https://kubernetes.default.svc
         namespace: "{{.namespace}}"

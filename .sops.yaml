@@ -1,0 +1,7 @@
+keys:
+  - &deafult your_sops_key
+
+creation_rules:
+  - key_groups:
+      - age:
+          - *deafult
