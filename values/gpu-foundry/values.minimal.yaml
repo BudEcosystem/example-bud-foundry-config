@@ -1,0 +1,16 @@
+# GPU Foundry add-on: a single-broker revenue Kafka, matching the other example.minimal
+# profiles this base installs. The chart's defaults are three brokers with every topic
+# replicated three times; drop this file from the ApplicationSet to get them.
+revenue:
+  kafka:
+    replicas: 1
+    config:
+      offsets.topic.replication.factor: 1
+      transaction.state.log.replication.factor: 1
+      transaction.state.log.min.isr: 1
+      default.replication.factor: 1
+      min.insync.replicas: 1
+      auto.create.topics.enable: false
+    topic:
+      replicas: 1
+      minInsyncReplicas: "1"

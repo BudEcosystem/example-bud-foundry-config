@@ -1,0 +1,41 @@
+# GPU Foundry add-on: the console's client in realm bud-keycloak.
+#
+# Selected only when GPU Foundry is installed, after values.budruntime.yaml. `clients` is a
+# map, so this adds a client without touching Bud's. The environment overlay sets the real
+# hostname, and secrets.<environment>.yaml the real secret (the same value as
+# values/gpu-foundry/secrets.<environment>.yaml's oidcClientSecret).
+#
+# Confidential, authorization code with PKCE only: GPU Foundry's backend-for-frontend holds the
+# secret and the browser never holds a token. The callback path is /bff/callback.
+#
+# No new realm role. GPU Foundry maps Bud's existing `super_admin` to its platform administrator
+# (values/gpu-foundry/values.budruntime.yaml, api.oidc.roleMap), so root can operate the
+# platform at once. Adding a role here would mean restating the whole roles list, which Helm
+# replaces rather than merges.
+realms:
+  keycloak-bud-keycloak-realm:
+    clients:
+      gpu-foundry-console:
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: false
+        secret: gpu-foundry-console
+        attributes:
+          pkce.code.challenge.method: S256
+          post.logout.redirect.uris: https://gpu-foundry.bud.lan/*
+        protocolMappers:
+          - config:
+              access.token.claim: "true"
+              id.token.claim: "false"
+              included.client.audience: gpu-foundry-console
+            name: aud-gpu-foundry-console
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+        redirectUris:
+          - https://gpu-foundry.bud.lan/bff/callback
+        webOrigins:
+          - https://gpu-foundry.bud.lan

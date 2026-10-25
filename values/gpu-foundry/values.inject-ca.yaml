@@ -1,0 +1,20 @@
+# GPU Foundry add-on, self-signed and internal-CA installations: trust the installation's CA.
+#
+# foundry-api fetches the Keycloak issuer's discovery document and keys over HTTPS, so it must
+# trust the CA that signed auth.<domain>. Kyverno's inject-ca policy covers only the bud and
+# bud-* namespaces, so the API mounts trust-manager's ca-pemstore bundle itself, as GPU
+# Foundry's dev environment does. Do not also add gpu-foundry to inject-ca: the pod would get
+# the ca-pemstore volume twice and be rejected.
+api:
+  extraEnv:
+    - name: SSL_CERT_FILE
+      value: /etc/ssl/certs/cafebabe-ca.pem
+  extraVolumes:
+    - name: ca-pemstore
+      configMap:
+        name: ca-pemstore
+  extraVolumeMounts:
+    - name: ca-pemstore
+      mountPath: /etc/ssl/certs/cafebabe-ca.pem
+      subPath: cafebabe-ca.pem
+      readOnly: true

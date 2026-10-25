@@ -1,0 +1,36 @@
+# GPU Foundry add-on: five roles, one database each, on the shared CNPG cluster.
+#
+# Selected only when GPU Foundry is installed, after values.budruntime.yaml and before
+# secrets.<environment>.yaml. `users` is a map, so Helm merges these entries with Bud's,
+# Keycloak's and SeaweedFS's instead of replacing them.
+#
+# Identity, platform and revenue are GPU Foundry's three separate state domains: one leaked
+# credential reaches one of them. OpenMeter and Lago migrate their own databases at start.
+#
+# Use hyphens, not underscores: each key becomes the Secret `cnpg-user-<key>` and the Database
+# `<key>-<database>`, and Kubernetes rejects underscores in those names. GPU Foundry's chart
+# builds its connection URLs from these exact role names on postgres-rw.postgres.svc.
+#
+# The passwords are development placeholders. budctl generates the real ones into
+# secrets.<environment>.yaml, which also feeds values/gpu-foundry/secrets.<environment>.yaml.
+users:
+  foundry-identity:
+    password: "foundry-identity"
+    databases:
+      - foundry-identity
+  foundry-platform:
+    password: "foundry-platform"
+    databases:
+      - foundry-platform
+  foundry-revenue:
+    password: "foundry-revenue"
+    databases:
+      - foundry-revenue
+  foundry-openmeter:
+    password: "foundry-openmeter"
+    databases:
+      - foundry-openmeter
+  foundry-lago:
+    password: "foundry-lago"
+    databases:
+      - foundry-lago

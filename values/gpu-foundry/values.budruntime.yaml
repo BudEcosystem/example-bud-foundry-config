@@ -1,0 +1,173 @@
+# GPU Foundry add-on: shared values for the one platform chart, registry.bud.studio/charts/gpu-foundry.
+#
+# Based on BudEcosystem/gpu-foundry v0.5.3, deploy/gitops/values/gpu-foundry/dev.yaml, which is
+# the environment it was proven on. What is specific to one cluster (hostnames, the issuer, the
+# cell, the network ranges, the tenancy profile) is in values.<environment>.yaml.
+#
+# THE CHART INSTALLS ON ITS OWN FROM 0.5.4 (GPU Foundry M5 D85): it carries its CRDs, the
+# gpu-foundry namespace, its RBAC, its Kyverno policies and alert rules, and its release's image
+# digests. At v0.5.3 those came from GPU Foundry's git and its dev.yaml. So no image digest is
+# set here, and the release namespace must be gpu-foundry (the chart refuses any other).
+#
+# The chart renders every Secret it reads from secrets.<environment>.yaml (SOPS). The names
+# below are the Secrets it renders; they are not created anywhere else.
+
+api:
+  replicaCount: 2
+  sshCaSecret:
+    name: foundry-ssh-ca
+    key: ca.key
+  oidc:
+    clientId: gpu-foundry-console
+    scopes: "openid profile email"
+    rolesClaim: realm_access.roles
+    # Bud's super_admin operates the platform; see values/keycloak/values.gpu-foundry.yaml.
+    roleMap: "super_admin=platform-admin"
+    clientSecretRef:
+      name: foundry-oidc
+      key: client-secret
+  session:
+    ttl: 12h
+    keyRef:
+      name: foundry-session
+      key: encryption-key
+  stores:
+    identity:
+      secretRef: { name: foundry-dsn-identity, key: dsn }
+    revenue:
+      secretRef: { name: foundry-dsn-revenue, key: dsn }
+    platform:
+      secretRef: { name: foundry-dsn-platform, key: dsn }
+  fleet:
+    freshnessWindow: 60s
+    tolerations: ""
+  # The fleet reader's ServiceAccount; the binding that lets it read nodes names the namespace
+  # gpu-foundry, so the add-on is installed there.
+  serviceAccount:
+    create: false
+    name: foundry-fleet-reader
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  ingress:
+    enabled: true
+    tlsSecretName: foundry-console-tls
+  logs:
+    endpoint: http://clickhouse-clickhouse.clickhouse.svc:8123
+    user: foundry_logs_reader
+    passwordRef:
+      name: foundry-tenant-logs
+      key: reader-password
+  imagePullSecrets:
+    - name: registry.bud.studio
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 75
+          preference:
+            matchExpressions:
+              - key: bud.studio/control-plane
+                operator: In
+                values:
+                  - "true"
+
+controller:
+  replicaCount: 2
+  stores:
+    platform:
+      secretRef: { name: foundry-dsn-platform, key: dsn }
+    revenue:
+      secretRef: { name: foundry-dsn-revenue, key: dsn }
+  startDeadline:
+    cached: 5m
+    uncached: 20m
+  fleet:
+    freshnessWindow: 60s
+    tolerations: ""
+  # The cell is this cluster, and the operator writes to it as itself (cells[].selfHosted in
+  # the environment overlay). Read GPU Foundry's M2 D4 before changing either.
+  rbac:
+    create: true
+    bindCellWriter: true
+  metering:
+    openmeterURL: http://openmeter-api.gpu-foundry-revenue.svc
+  invoicing:
+    lagoURL: http://lago-api.gpu-foundry-revenue.svc:3000
+    apiKeySecretRef: { name: foundry-lago, key: api-key }
+  keycloak:
+    url: ""
+  # No reset image is published, so a device is not reused between tenants.
+  resetImage: ""
+  deviceReuse: "off"
+  imagePullSecrets:
+    - name: registry.bud.studio
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 75
+          preference:
+            matchExpressions:
+              - key: bud.studio/control-plane
+                operator: In
+                values:
+                  - "true"
+
+creditController:
+  replicaCount: 2
+  stores:
+    revenue:
+      secretRef: { name: foundry-dsn-revenue, key: dsn }
+    platform:
+      secretRef: { name: foundry-dsn-platform, key: dsn }
+  podMonitor:
+    enabled: false
+  imagePullSecrets:
+    - name: registry.bud.studio
+
+usageShaper:
+  consumer: openmeter
+  metering:
+    brokers: revenue-kafka-bootstrap.kafka.svc:9092
+    tls: false
+    topic: om_default_events
+    namespace: default
+    deduplication: enabled
+    credentialSecret:
+      name: foundry-metering-credentials
+      usernameKey: username
+      passwordKey: password
+  podMonitor:
+    enabled: false
+  imagePullSecrets:
+    - name: registry.bud.studio
+
+accessGateway:
+  enabled: true
+
+ttyd:
+  enabled: true
+
+tenantLogs:
+  enabled: true
+
+# OpenMeter, Lago, Redis and the revenue Kafka cluster. The Kafka cluster is a Strimzi `Kafka`
+# in namespace kafka, reconciled by the operator values/kafka installs.
+revenue:
+  enabled: true
+
+# The policies this base cannot run with, removed by name (a name the chart does not carry fails
+# the render):
+platformManifests:
+  exclude:
+    # Refuses every GPU pod GPU Foundry did not create, cluster-wide. Bud's own model
+    # deployments request GPUs on the same cluster and would be refused.
+    - ValidatingPolicy/accelerator-pods-belong-to-a-project
+    # Verify the platform images' signatures, which needs Kyverno to read the private
+    # registry.bud.studio project: the pull secret in namespace kyverno. Not provided here.
+    - ImageValidatingPolicy/foundry-images-are-signed
+    - ImageValidatingPolicy/foundry-images-are-signed-in-projects
+
+# PodMonitors, ServiceMonitors and alert rules need the Prometheus Operator's CRDs, which this
+# base does not install. Turn this on in an environment that has them.
+monitoring:
+  enabled: false

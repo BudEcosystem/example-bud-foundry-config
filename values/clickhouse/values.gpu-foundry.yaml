@@ -1,0 +1,61 @@
+# GPU Foundry add-on: its tenant-log store and revenue projection on the shared ClickHouse.
+#
+# Selected only when GPU Foundry is installed, after values.budruntime.yaml and before
+# secrets.<environment>.yaml. `users` is a map, so Helm merges these with Bud's user.
+#
+# Each store has its own users and no user owns the database. GPU Foundry's schema Jobs create
+# the databases and tables, then check as each user that the grants are exactly these: the
+# collector and writer cannot read, the readers cannot write. Change a grant here and those
+# Jobs fail the sync. The grants match BudEcosystem/infra values/clickhouse/values.tcs-vmware.yaml.
+#
+# GPU Foundry reaches ClickHouse at clickhouse-clickhouse.clickhouse.svc, so keep the release
+# name `clickhouse` in namespace `clickhouse`.
+#
+# The passwords are development placeholders. budctl generates the real ones into
+# secrets.<environment>.yaml, which also feeds values/gpu-foundry/secrets.<environment>.yaml.
+users:
+  # Tenant logs: database tenant_logs.
+  foundry_logs_schema:
+    password: "foundry_logs_schema"
+    grants:
+      - CREATE DATABASE ON tenant_logs.*
+      - CREATE TABLE ON tenant_logs.*
+      - ALTER TTL ON tenant_logs.*
+      - SHOW TABLES ON tenant_logs.*
+      - SELECT ON system.tables
+  foundry_logs_collector:
+    password: "foundry_logs_collector"
+    grants:
+      - INSERT ON tenant_logs.lines
+      - SHOW COLUMNS ON tenant_logs.lines
+  foundry_logs_reader:
+    password: "foundry_logs_reader"
+    grants:
+      - SELECT ON tenant_logs.lines
+      - SELECT ON tenant_logs.session_recordings
+  foundry_logs_recorder:
+    password: "foundry_logs_recorder"
+    grants:
+      - INSERT ON tenant_logs.session_recordings
+      - CREATE TEMPORARY TABLE ON *.*
+  # Revenue projection: OpenMeter's events table, revenue_metering.om_events. Both engine users
+  # hold CREATE TABLE on that one table because OpenMeter runs CREATE TABLE IF NOT EXISTS at start.
+  foundry_revenue_schema:
+    password: "foundry_revenue_schema"
+    grants:
+      - CREATE DATABASE ON revenue_metering.*
+      - CREATE TABLE ON revenue_metering.*
+      - ALTER TTL ON revenue_metering.*
+      - SHOW TABLES ON revenue_metering.*
+      - SELECT ON system.tables
+  foundry_revenue_writer:
+    password: "foundry_revenue_writer"
+    grants:
+      - INSERT ON revenue_metering.om_events
+      - SHOW COLUMNS ON revenue_metering.om_events
+      - CREATE TABLE ON revenue_metering.om_events
+  foundry_revenue_reader:
+    password: "foundry_revenue_reader"
+    grants:
+      - SELECT ON revenue_metering.om_events
+      - CREATE TABLE ON revenue_metering.om_events

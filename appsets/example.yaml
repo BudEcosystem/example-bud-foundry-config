@@ -66,6 +66,7 @@ spec:
             valueFiles:
               - "example.minimal.yaml"
               - "$values/values/clickhouse/values.budruntime.yaml"
+              - "$values/values/clickhouse/values.gpu-foundry.yaml"
           - name: postgres
             namespace: postgres
             repoURL: registry.bud.studio/charts
@@ -75,6 +76,7 @@ spec:
               - "example.minimal.yaml"
               - "$values/values/postgres/values.budruntime.yaml"
               - "$values/values/postgres/values.minimal.budruntime.yaml"
+              - "$values/values/postgres/values.gpu-foundry.yaml"
           - name: seaweedfs
             namespace: seaweedfs
             repoURL: registry.bud.studio/charts
@@ -100,6 +102,7 @@ spec:
             targetRevision: "0.2.1"
             valueFiles:
               - "$values/values/keycloak/values.budruntime.yaml"
+              - "$values/values/keycloak/values.gpu-foundry.yaml"
               - "$values/values/keycloak/values.example.yaml"
               - "$values/values/keycloak/secrets.example.yaml"
           - name: bud
@@ -110,6 +113,23 @@ spec:
             valueFiles:
               - "$values/values/bud/values.example.yaml"
               - "$values/values/bud/secrets.example.yaml"
+          - name: gpu-foundry
+            namespace: gpu-foundry
+            repoURL: registry.bud.studio/charts
+            chart: gpu-foundry
+            targetRevision: "0.5.4-rc.2"
+            valueFiles:
+              - "$values/values/gpu-foundry/values.budruntime.yaml"
+              - "$values/values/gpu-foundry/values.minimal.yaml"
+              - "$values/values/gpu-foundry/values.inject-ca.yaml"
+              - "$values/values/gpu-foundry/values.example.yaml"
+          - name: gpu-foundry-kueue
+            namespace: kueue-system
+            repoURL: registry.k8s.io/kueue/charts
+            chart: kueue
+            targetRevision: "0.14.4"
+            valueFiles:
+              - "$values/values/kueue/values.yaml"
   template:
     metadata:
       name: "bud-{{.name}}"
