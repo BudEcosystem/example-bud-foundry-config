@@ -4,9 +4,8 @@ How to add the GPU Foundry add-on to a configuration repository that `budctl` ha
 generated and Argo CD is already syncing. A new installation gets the same result from `budctl`
 with the add-on switched on, and skips step 7.
 
-Proven on 2026-10-25 against the `tcs-vmware` estate: chart `gpu-foundry` `0.5.4-rc.2`, Keycloak
-chart `0.2.1` (operator 26.6.1), Kyverno chart `0.0.2`. Below, `<env>` is your environment's
-name (the one in `appsets/<env>.yaml`) and `<domain>` its base domain.
+Below, `<env>` is your environment's name (the one in `appsets/<env>.yaml`) and `<domain>` its
+base domain.
 
 ## What it installs
 
