@@ -14,6 +14,9 @@
 
 api:
   replicaCount: 2
+  # The SSH user CA, Secret foundry-ssh-ca, rendered from secrets.ssh.caKey/caPub. Both are
+  # REQUIRED here: the access gateway reads ca.pub from the same Secret, and without it serves no
+  # SSH while its sshpiperd sidecar crash-loops.
   sshCaSecret:
     name: foundry-ssh-ca
     key: ca.key

@@ -57,6 +57,8 @@ Kyverno policies. Bud's `super_admin` role is GPU Foundry's platform administrat
 Its SOPS file `values/gpu-foundry/secrets.<environment>.yaml` lists the keys it needs
 in `values/gpu-foundry/values.example.yaml`; its database and Keycloak passwords must
 match the ones generated for Postgres, ClickHouse and Keycloak.
+[GPU-FOUNDRY.md](GPU-FOUNDRY.md) adds it to an installation `budctl` already generated, including
+the Keycloak client step (`scripts/gpu-foundry-keycloak-client.sh`) that an existing realm needs.
 
 The generated ArgoCD secret values configure authenticated access to the Bud
 OCI chart repository. Private Git access and internal issuing-CA key material

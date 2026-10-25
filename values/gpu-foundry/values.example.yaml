@@ -5,7 +5,11 @@
 #   secrets:
 #     tokenPepper, sessionKey               generated
 #     oidcClientSecret                      = keycloak's gpu-foundry-console secret
-#     ssh: { hostKey }                      generated (ed25519, OpenSSH PEM)
+#     ssh: { hostKey, caKey, caPub }        generated, all three: hostKey is sshpiperd's host key
+#                                           (ed25519, OpenSSH PEM); caKey/caPub are the SSH user CA
+#                                           pair (ed25519; caPub is the one-line public key).
+#                                           Without the CA pair the access gateway serves no SSH
+#                                           and its sshpiperd sidecar crash-loops.
 #     postgres: { identity, platform, revenue, openmeter, lago }
 #                                           = values/postgres's foundry-* passwords
 #     clickhouse: { logsSchema, logsCollector, logsReader, logsRecorder,
@@ -18,7 +22,7 @@
 #                                           generated ONCE; new keys make Lago's data unreadable
 #     registry: { dockerConfigJson }        the registry.bud.studio pull credential
 #
-# GPU Foundry's hack/secrets-init.sh produces the same keys.
+# GPU Foundry's hack/secrets-init.sh produces the same keys (the CA pair with SSH_SIGNER=1).
 api:
   publicOrigin: https://gpu-foundry.bud.example.com
   terminalOrigin: https://gpu-foundry.bud.example.com/terminal
