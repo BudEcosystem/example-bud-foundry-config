@@ -35,7 +35,8 @@ chart creates for it. The estate also needs:
   refuses. Use it for the `kyverno` element in `appsets/<env>.yaml`, and leave out
   `values.inject-ca.yaml` unless the estate uses a private CA.
 - **`api.ingress.className: openshift-default`** and the annotation
-  `route.openshift.io/termination: edge`.
+  `route.openshift.io/termination: edge`. `values.example.yaml` says `traefik`; left as is, the
+  sync fails with `could not find traefik.io/Middleware`.
 - **The console's TLS Secret must exist.** This is `api.ingress.tlsSecretName` in namespace
   `gpu-foundry` (`foundry-console-tls` by default). OpenShift makes no Route for an Ingress whose
   TLS Secret is missing, and records no event saying why. Where the Secret comes from depends on
@@ -118,7 +119,7 @@ Start from `values/gpu-foundry/values.example.yaml`, and set:
 | Value | Set to |
 |---|---|
 | `api.publicOrigin`, `api.terminalOrigin`, `api.ingress.host` | `https://gpu-foundry.<domain>` (and `/terminal`); the host must resolve to your ingress |
-| `api.ingress.className` | your ingress class |
+| `api.ingress.className` | your ingress class: `openshift-default` on OpenShift, with the annotation `route.openshift.io/termination: edge` |
 | `api.oidc.issuer` | `https://auth.<domain>/realms/bud-keycloak` |
 | `api.tenancyProfile` | `internal-a` (tenants trust each other) or `csp-b` (they don't). Fixed for each organisation when it's created |
 | `api.cells`, `controller.cells` | this cluster as one cell, the same `id` and `region` in both |

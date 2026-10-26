@@ -41,6 +41,9 @@ api:
       synthetic: false
       selfHosted: true
       acceptanceSource: none
+  # On OpenShift, set className: openshift-default and add the annotation
+  # route.openshift.io/termination: edge. With className traefik the chart also renders a
+  # traefik Middleware, and the sync fails where traefik's CRDs aren't installed.
   ingress:
     className: traefik
     host: gpu-foundry.bud.example.com
