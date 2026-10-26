@@ -25,6 +25,32 @@ Before you start:
 - If your Argo CD requires OCI Helm repositories to be registered, register
   `registry.k8s.io/kueue/charts`.
 
+### On OpenShift
+
+The chart detects OpenShift and adapts by itself (GPU Foundry M5 D86): its pods take their user
+from the namespace's `restricted-v2` SCC, and the tenant-log collector runs under an SCC the
+chart creates for it. The estate also needs:
+
+- **Kyverno chart `0.0.5` or later.** Earlier versions set user IDs that `restricted-v2`
+  refuses. Use it for the `kyverno` element in `appsets/<env>.yaml`, and leave out
+  `values.inject-ca.yaml` unless the estate uses a private CA.
+- **`api.ingress.className: openshift-default`** and the annotation
+  `route.openshift.io/termination: edge`.
+- **The console's TLS Secret must exist.** This is `api.ingress.tlsSecretName` in namespace
+  `gpu-foundry` (`foundry-console-tls` by default). OpenShift makes no Route for an Ingress whose
+  TLS Secret is missing, and records no event saying why. Where the Secret comes from depends on
+  the TLS mode:
+  - **self-signed, internal CA:** nothing to do. cert-manager's CA issuer signs it from the
+    `kubernetes.io/tls-acme` annotation.
+  - **ACME:** use a DNS-01 issuer. The default `letsencrypt-http01` answers through a `traefik`
+    Ingress, which OpenShift doesn't serve, so the certificate is never issued.
+  - **externally terminated:** there is no cert-manager, so create the Secret yourself.
+- **OVN's ranges in `controller.network`:** `serviceCIDR: 172.30.0.0/16`, and in
+  `platformCIDRs` the pod range (`10.128.0.0/14` by default) plus every node's address.
+- **`monitoring.enabled: false`** (the default here), unless user-workload monitoring is on.
+
+Under OpenShift's router the terminal page sends no `Referrer-Policy` header; only Traefik adds it.
+
 ## 1. Copy the shared files
 
 Copy these unchanged from this repository:
@@ -69,7 +95,7 @@ passwords override the placeholders. Then add the two Applications at the end of
 +            namespace: gpu-foundry
 +            repoURL: registry.bud.studio/charts
 +            chart: gpu-foundry
-+            targetRevision: "0.5.4-rc.2"
++            targetRevision: "0.5.4-rc.3"
 +            valueFiles:
 +              - "$values/values/gpu-foundry/values.budruntime.yaml"
 +              - "$values/values/gpu-foundry/values.minimal.yaml"
@@ -168,6 +194,22 @@ kubectl -n gpu-foundry-tenant-logs get jobs                      # tenant-logs-s
 
 `revenue-schema` and `tenant-logs-schema` log in as each ClickHouse user and check its grants,
 so their completing proves step 5's ClickHouse passwords and this repository's grants.
+
+If they fail with `Authentication failed`, check that the users exist:
+
+```bash
+kubectl -n clickhouse exec chi-clickhouse-cluster-0-0-0 -- clickhouse-client -q "select name from system.users" | grep foundry_
+```
+
+This only happens on a single-replica ClickHouse where Bud hasn't yet created its `metrics`
+database, which in practice means a new installation. There, the `clickhouse` chart's user Job
+stops at that database (`Macro 'uuid' in engine arguments is only supported ... within an ON
+CLUSTER query`). It still logs `Success`, but creates none of the users after `bud`, which
+includes all of GPU Foundry's. Once `metrics` exists the statement is a no-op, so an existing
+installation is unaffected. Re-sync `<env>-clickhouse` with a changed value to re-run the Job,
+then re-run `revenue-schema`. If OpenMeter created
+`revenue_metering.om_events` first, the Job prints the one `ALTER TABLE ... MODIFY TTL` statement
+to run before it will pass.
 
 Then open `https://gpu-foundry.<domain>` and sign in as a user with the realm role `super_admin`
 (`root` by default). That user is GPU Foundry's platform administrator.
