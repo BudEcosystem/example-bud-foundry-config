@@ -27,9 +27,17 @@ Before you start:
 
 ### On OpenShift
 
-The chart detects OpenShift and adapts by itself (GPU Foundry M5 D86): its pods take their user
-from the namespace's `restricted-v2` SCC, and the tenant-log collector runs under an SCC the
-chart creates for it. The estate also needs:
+On OpenShift the chart's pods take their user from the namespace's `restricted-v2` SCC, and the
+tenant-log collector runs under an SCC the chart creates for it (GPU Foundry M5 D86). The estate
+needs:
+
+- **`platform.openshift: true`** in `values.<env>.yaml`. The chart can detect OpenShift, but only
+  when Argo passes it the cluster's API versions. Where it doesn't, every pod is refused with
+  `runAsUser: Invalid value: 65532`.
+- **On bare-metal OpenShift, `hostSource: none`** on the cell in both `api.cells` and
+  `controller.cells`. OpenShift's machine API serves BareMetalHost, and without the declaration
+  foundry-api and foundry-controller refuse to start (`declares no acceptance tier and serves
+  BareMetalHost`).
 
 - **Kyverno chart `0.0.5` or later.** Earlier versions set user IDs that `restricted-v2`
   refuses. Use it for the `kyverno` element in `appsets/<env>.yaml`, and leave out
@@ -49,6 +57,11 @@ chart creates for it. The estate also needs:
 - **OVN's ranges in `controller.network`:** `serviceCIDR: 172.30.0.0/16`, and in
   `platformCIDRs` the pod range (`10.128.0.0/14` by default) plus every node's address.
 - **`monitoring.enabled: false`** (the default here), unless user-workload monitoring is on.
+- **A way in for SSH.** The `access-gateway-ssh` Service is a LoadBalancer. Without MetalLB
+  nothing gives it an address, and Argo waits on it forever, so the later sync waves never run.
+  Patch it to a NodePort as a workaround:
+  `kubectl -n gpu-foundry patch svc access-gateway-ssh -p '{"spec":{"type":"NodePort"}}'`. Re-run
+  it after each sync.
 
 Under OpenShift's router the terminal page sends no `Referrer-Policy` header; only Traefik adds it.
 

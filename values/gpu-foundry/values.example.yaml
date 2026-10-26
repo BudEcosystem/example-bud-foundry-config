@@ -32,9 +32,12 @@ api:
   # and never changed afterwards. internal-a: one enterprise whose tenants trust each other.
   # csp-b (the chart's default): tenants that do not trust each other.
   tenancyProfile: internal-a
-  # This cluster as GPU Foundry's one cell. It must match controller.cells.
+  # This cluster as GPU Foundry's one cell. It must match controller.cells. Name it for the
+  # cluster (letters, digits and hyphens): it's hard to rename once projects exist.
   # telemetryUrl (DCGM exporter) and metricsUrl (Prometheus) are optional; add them where the
   # cluster runs those.
+  # On bare-metal OpenShift add `hostSource: none` here and in controller.cells: its machine
+  # API serves BareMetalHost, and without it foundry-api and foundry-controller refuse to start.
   cells:
     - id: example
       region: example
@@ -63,3 +66,8 @@ controller:
       region: example
       selfHosted: true
       acceptanceSource: none
+
+# On OpenShift, uncomment. The chart can detect OpenShift on its own, but on an estate where Argo
+# didn't pass the cluster's API versions every pod was refused by restricted-v2.
+# platform:
+#   openshift: true
