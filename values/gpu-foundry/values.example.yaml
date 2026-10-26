@@ -71,3 +71,12 @@ controller:
 # didn't pass the cluster's API versions every pod was refused by restricted-v2.
 # platform:
 #   openshift: true
+
+# The SSH front door. The default is a LoadBalancer on 2222 at the console's host. On OpenShift
+# without MetalLB, use a NodePort and name the host tenants reach it on (GPU-FOUNDRY.md).
+# accessGateway:
+#   ssh:
+#     service:
+#       type: NodePort
+#       nodePort: 32222
+#     publicHost: ssh.gpu-foundry.bud.example.com

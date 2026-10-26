@@ -57,11 +57,24 @@ needs:
 - **OVN's ranges in `controller.network`:** `serviceCIDR: 172.30.0.0/16`, and in
   `platformCIDRs` the pod range (`10.128.0.0/14` by default) plus every node's address.
 - **`monitoring.enabled: false`** (the default here), unless user-workload monitoring is on.
-- **A way in for SSH.** The `access-gateway-ssh` Service is a LoadBalancer. Without MetalLB
-  nothing gives it an address, and Argo waits on it forever, so the later sync waves never run.
-  Patch it to a NodePort as a workaround:
-  `kubectl -n gpu-foundry patch svc access-gateway-ssh -p '{"spec":{"type":"NodePort"}}'`. Re-run
-  it after each sync.
+- **A way in for SSH.** The `access-gateway-ssh` Service is a LoadBalancer by default. Without
+  MetalLB nothing gives it an address, and Argo waits on it forever, so the later sync waves never
+  run. Make it a NodePort, and tell the console where tenants reach it, because the console's own
+  host goes to OpenShift's router, which serves HTTP only:
+
+  ```yaml
+  accessGateway:
+    ssh:
+      service:
+        type: NodePort
+        nodePort: 32222          # 30000-32767; open it to the nodes in your firewall
+      publicHost: ssh.gpu-foundry.<domain>   # an A record for the nodes' IPs, or one node's IP
+  ```
+
+  Tenants are shown `ssh -p 32222 <instance>@ssh.gpu-foundry.<domain>`.
+- **Idle terminals.** OpenShift's router closes a connection that's idle for 30 seconds. If the
+  browser terminal drops while idle, add `haproxy.router.openshift.io/timeout: 1h` to
+  `api.ingress.annotations`.
 
 Under OpenShift's router the terminal page sends no `Referrer-Policy` header; only Traefik adds it.
 
@@ -109,7 +122,7 @@ passwords override the placeholders. Then add the two Applications at the end of
 +            namespace: gpu-foundry
 +            repoURL: registry.bud.studio/charts
 +            chart: gpu-foundry
-+            targetRevision: "0.5.4-rc.3"
++            targetRevision: "0.5.4-rc.4"
 +            valueFiles:
 +              - "$values/values/gpu-foundry/values.budruntime.yaml"
 +              - "$values/values/gpu-foundry/values.minimal.yaml"
