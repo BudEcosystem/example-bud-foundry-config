@@ -122,7 +122,7 @@ passwords override the placeholders. Then add the two Applications at the end of
 +            namespace: gpu-foundry
 +            repoURL: registry.bud.studio/charts
 +            chart: gpu-foundry
-+            targetRevision: "0.5.4-rc.5"
++            targetRevision: "0.5.4-rc.6"
 +            valueFiles:
 +              - "$values/values/gpu-foundry/values.budruntime.yaml"
 +              - "$values/values/gpu-foundry/values.minimal.yaml"
