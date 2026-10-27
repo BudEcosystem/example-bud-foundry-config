@@ -38,6 +38,17 @@ api:
   # price is in another currency.
   rateCard:
     currency: USD
+  # The console's own name and logo instead of Bud's. Files are base64 (`base64 -i logo.svg`),
+  # each under 512KiB; one logo serves both themes. Unset, the console is Bud's.
+  # branding:
+  #   productName: Example GPU Cloud
+  #   logo:
+  #     format: svg          # png | svg | webp | jpeg
+  #     onDark: <base64>     # for the dark theme (light ink)
+  #     onLight: <base64>    # for the light theme (dark ink)
+  #   favicon:
+  #     format: svg          # svg | png | ico
+  #     data: <base64>
   # This cluster as GPU Foundry's one cell. It must match controller.cells. Name it for the
   # cluster (letters, digits and hyphens): it's hard to rename once projects exist.
   # telemetryUrl (DCGM exporter) and metricsUrl (Prometheus) are optional; add them where the
