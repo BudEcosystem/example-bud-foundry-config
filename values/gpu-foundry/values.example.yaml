@@ -38,17 +38,19 @@ api:
   # price is in another currency.
   rateCard:
     currency: USD
-  # The console's own name and logo instead of Bud's. Files are base64 (`base64 -i logo.svg`),
-  # each under 512KiB; one logo serves both themes. Unset, the console is Bud's.
+  # The console's own name and logo instead of Bud's. Unset, the console is Bud's. Each file
+  # comes from a URL (fetched by foundry-api, not the browser, and again every 10m, so a logo
+  # replaced at its URL updates) or as base64 (`base64 -i logo.svg | tr -d '\n'`, for an
+  # air-gapped cluster). One logo serves both themes.
   # branding:
   #   productName: Example GPU Cloud
   #   logo:
-  #     format: svg          # png | svg | webp | jpeg
-  #     onDark: <base64>     # for the dark theme (light ink)
-  #     onLight: <base64>    # for the light theme (dark ink)
+  #     onDarkUrl: https://example.com/brand/logo-light-ink.svg
+  #     # or, as base64:
+  #     # format: svg          # png | svg | webp | jpeg
+  #     # onDark: <base64>
   #   favicon:
-  #     format: svg          # svg | png | ico
-  #     data: <base64>
+  #     url: https://example.com/brand/icon.svg
   # This cluster as GPU Foundry's one cell. It must match controller.cells. Name it for the
   # cluster (letters, digits and hyphens): it's hard to rename once projects exist.
   # telemetryUrl (DCGM exporter) and metricsUrl (Prometheus) are optional; add them where the
