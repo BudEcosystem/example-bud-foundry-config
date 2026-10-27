@@ -22,8 +22,10 @@ values/
 ├── cert-manager/    # common, self-signed, ACME, and internal-CA profiles
 ├── clickhouse/      # Bud databases and operator scheduling
 ├── dapr/            # Dapr control-plane profile
+├── gpu-foundry/     # GPU Foundry add-on: platform chart values
 ├── kafka/           # Bud user and operator scheduling
 ├── keycloak/        # realm/client baseline and Bud theme
+├── kueue/           # GPU Foundry add-on: Kueue, scoped to project namespaces
 ├── kyverno/         # private-CA injection and controller scheduling
 ├── mongodb/         # Bud/Novu database baseline
 ├── postgres/        # Bud service databases and poolers
@@ -45,7 +47,18 @@ deliberately omitting secret files. During an installation, budctl generates:
 OpenSandbox is included by default. Self-signed and imported internal-CA
 installations automatically include Kyverno for CA trust injection. Public
 ACME modes use cert-manager without Kyverno; externally terminated TLS omits
-both. Bud Studio is the only optional add-on.
+both. The optional add-ons are Bud Studio and GPU Foundry.
+
+GPU Foundry installs its platform chart into namespace `gpu-foundry` and Kueue into
+`kueue-system`. It also adds `values.gpu-foundry.yaml` to Postgres (five roles and
+databases), ClickHouse (seven users with exact grants) and Keycloak (the
+`gpu-foundry-console` client), and always installs Kyverno, because the chart ships
+Kyverno policies. Bud's `super_admin` role is GPU Foundry's platform administrator.
+Its SOPS file `values/gpu-foundry/secrets.<environment>.yaml` lists the keys it needs
+in `values/gpu-foundry/values.example.yaml`; its database and Keycloak passwords must
+match the ones generated for Postgres, ClickHouse and Keycloak.
+[GPU-FOUNDRY.md](GPU-FOUNDRY.md) adds it to an installation `budctl` already generated, including
+the Keycloak client step (`scripts/gpu-foundry-keycloak-client.sh`) that an existing realm needs.
 
 The generated ArgoCD secret values configure authenticated access to the Bud
 OCI chart repository. Private Git access and internal issuing-CA key material

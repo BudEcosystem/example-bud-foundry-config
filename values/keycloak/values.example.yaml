@@ -37,3 +37,11 @@ realms:
           - https://app.bud.example.com/auth/redirect/callback
         webOrigins:
           - "+"
+      # GPU Foundry add-on only (values.gpu-foundry.yaml defines the client).
+      gpu-foundry-console:
+        attributes:
+          post.logout.redirect.uris: https://gpu-foundry.bud.example.com/*
+        redirectUris:
+          - https://gpu-foundry.bud.example.com/bff/callback
+        webOrigins:
+          - https://gpu-foundry.bud.example.com

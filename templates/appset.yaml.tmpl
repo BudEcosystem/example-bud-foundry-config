@@ -55,14 +55,14 @@ spec:
 [[ if .SelfSigned ]]              - "$values/values/cert-manager/values.selfsigned-ca.yaml"
 [[ end ]][[ if .CertValues ]]              - "$values/values/cert-manager/values.[[ .Environment ]].yaml"
 [[ end ]][[ if .CertSecrets ]]              - "$values/values/cert-manager/secrets.[[ .Environment ]].yaml"
-[[ end ]][[ end ]][[ if .CAInjection ]]          - name: kyverno
+[[ end ]][[ end ]][[ if or .CAInjection .GPUFoundry ]]          - name: kyverno
             namespace: kyverno
             repoURL: registry.bud.studio/charts
             chart: kyverno
             targetRevision: "0.0.2"
             valueFiles:
-              - "$values/values/kyverno/values.inject-ca.yaml"
-              - "$values/values/kyverno/values.budruntime.yaml"
+[[ if .CAInjection ]]              - "$values/values/kyverno/values.inject-ca.yaml"
+[[ end ]]              - "$values/values/kyverno/values.budruntime.yaml"
 [[ end ]]          - name: clickhouse
             namespace: clickhouse
             repoURL: registry.bud.studio/charts
@@ -71,7 +71,8 @@ spec:
             valueFiles:
               - "example.minimal.yaml"
               - "$values/values/clickhouse/values.budruntime.yaml"
-              - "$values/values/clickhouse/secrets.[[ .Environment ]].yaml"
+[[ if .GPUFoundry ]]              - "$values/values/clickhouse/values.gpu-foundry.yaml"
+[[ end ]]              - "$values/values/clickhouse/secrets.[[ .Environment ]].yaml"
           - name: postgres
             namespace: postgres
             repoURL: registry.bud.studio/charts
@@ -81,7 +82,8 @@ spec:
               - "example.minimal.yaml"
               - "$values/values/postgres/values.budruntime.yaml"
               - "$values/values/postgres/values.minimal.budruntime.yaml"
-              - "$values/values/postgres/secrets.[[ .Environment ]].yaml"
+[[ if .GPUFoundry ]]              - "$values/values/postgres/values.gpu-foundry.yaml"
+[[ end ]]              - "$values/values/postgres/secrets.[[ .Environment ]].yaml"
           - name: seaweedfs
             namespace: seaweedfs
             repoURL: registry.bud.studio/charts
@@ -109,7 +111,8 @@ spec:
             targetRevision: "0.2.1"
             valueFiles:
               - "$values/values/keycloak/values.budruntime.yaml"
-              - "$values/values/keycloak/values.[[ .Environment ]].yaml"
+[[ if .GPUFoundry ]]              - "$values/values/keycloak/values.gpu-foundry.yaml"
+[[ end ]]              - "$values/values/keycloak/values.[[ .Environment ]].yaml"
               - "$values/values/keycloak/secrets.[[ .Environment ]].yaml"
           - name: bud
             namespace: bud
@@ -134,6 +137,31 @@ spec:
             valueFiles:
               - "$values/values/bud-studio/values.[[ .Environment ]].yaml"
               - "$values/values/bud-studio/secrets.[[ .Environment ]].yaml"
+[[ end ]][[ if .GPUFoundry ]]          - name: gpu-foundry
+            # Must be gpu-foundry: the fleet reader's ClusterRoleBinding names it. The chart
+            # also creates gpu-foundry-revenue, gpu-foundry-tenant-logs and
+            # gpu-foundry-credentials, and its revenue Kafka objects in namespace kafka.
+            namespace: gpu-foundry
+            repoURL: registry.bud.studio/charts
+            chart: gpu-foundry
+            # The first release whose chart carries the CRDs, RBAC, namespace, policies and
+            # image digests that v0.5.3 took from git.
+            targetRevision: "0.5.4-rc.8"
+            valueFiles:
+              - "$values/values/gpu-foundry/values.budruntime.yaml"
+              - "$values/values/gpu-foundry/values.minimal.yaml"
+[[ if .CAInjection ]]              - "$values/values/gpu-foundry/values.inject-ca.yaml"
+[[ end ]]              - "$values/values/gpu-foundry/values.[[ .Environment ]].yaml"
+              - "$values/values/gpu-foundry/secrets.[[ .Environment ]].yaml"
+          - name: gpu-foundry-kueue
+            # Kueue is per cluster (CRDs, webhooks, an APIService), so one Application. Its
+            # chart also puts one RoleBinding in kube-system.
+            namespace: kueue-system
+            repoURL: registry.k8s.io/kueue/charts
+            chart: kueue
+            targetRevision: "0.14.4"
+            valueFiles:
+              - "$values/values/kueue/values.yaml"
 [[ end ]]  template:
     metadata:
       name: "[[ .Environment ]]-{{.name}}"

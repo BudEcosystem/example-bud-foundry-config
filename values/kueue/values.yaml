@@ -1,0 +1,79 @@
+# Copied unchanged from BudEcosystem/gpu-foundry v0.5.3, deploy/gitops/values/kueue/values.yaml.
+# Kueue is installed only with the GPU Foundry add-on; its job webhooks judge only namespaces
+# labelled foundry.io/project (managedJobsNamespaceSelector below).
+#
+# KUEUE, AS THIS REPOSITORY INSTALLS IT (M3 D5, C7, D15).
+#
+# THESE ARE THE VALUES ARGO PASSES TO THE CHART, and that is new in D15. Until then this
+# file declared `integrations.frameworks` at the top level — a statement of what the
+# estate was expected to configure, in a shape the chart does not accept — beside a second
+# file holding the Configuration object. Two files, neither of which any deployment read.
+# Kueue was assumed installed (docs/M3.md said so) and on the first real cluster it was
+# not installed at all.
+#
+# THE POD INTEGRATION STAYS OFF. The operator renders every workload as a batch Job
+# (internal/tenancy/render.go), so Kueue's Job integration is the ONE path through which
+# capacity is admitted. Turning the pod integration on would open a second: a bare pod
+# carrying kueue.x-k8s.io/queue-name would be admitted by Kueue directly, never having
+# been rendered by the operator, and policy/quota-label-guard.yaml's reasoning — that a
+# governed pod is one the operator produced — would be false in a way no fixture
+# exercises. AR-15 is "no capacity request bypasses quota accounting by any path"; the
+# fewer paths, the fewer things the guard has to be right about.
+# test/manifests/TestKueuePodIntegrationStaysOff fails the build if `pod` appears below.
+#
+# `waitForPodsReady` IS OFF: the platform's own deadline terminator (M3 D9) decides how
+# long a workload may take to start, from a published number, and Kueue evicting on its
+# own timer would be a second deadline nobody published.
+#
+# `managedJobsNamespaceSelector` BOUNDS KUEUE TO NAMESPACES THIS PLATFORM MADE. Every
+# project namespace carries `foundry.io/project` (internal/tenancy projectLabels), so
+# Kueue manages Jobs there and nowhere else. With manageJobsWithoutQueueName left false
+# this is belt and braces — an unlabelled Job is ignored either way — and on a SHARED
+# cluster belt and braces is the correct amount.
+#
+# AND IT BOUNDS WHAT THE WEBHOOKS INTERCEPT — which this header used to deny (P027). It
+# said `mjob.kb.io` and `vjob.kb.io` judge every batch/v1 Job on the cluster with no
+# namespaceSelector. Rendered, the pinned chart (0.14.4) copies THIS selector onto every
+# job-framework webhook: Job, JobSet, the Kubeflow jobs, Ray, AppWrapper, LeaderWorkerSet,
+# Deployment, StatefulSet and Pod — 30 of its 39 entries. With it, a Kueue outage refuses
+# Jobs in project namespaces and nowhere else. The claim was measured against the chart's
+# defaults, before this key was here, and outlived the key.
+#
+# WHAT STILL JUDGES EVERY NAMESPACE, named so nobody is surprised by it: `mtrainjob.kb.io`
+# and `vtrainjob.kb.io` (Kubeflow Trainer v2 TrainJobs — the template gives them no selector
+# and no value adds one; only a cluster running Trainer has a TrainJob to refuse), and the
+# webhooks on Kueue's OWN kinds (ClusterQueue, Cohort, ResourceFlavor, Workload), which only
+# Kueue's users create. Trimming `frameworks` removes none of the 39; this selector is what
+# bounds them. test/manifests/TestKueuesJobWebhooksJudgeOnlyProjectNamespaces renders the
+# chart as Argo does and fails if a fail-closed webhook on another project's kind loses the
+# selector, or a bump adds one without it.
+managerConfig:
+  controllerManagerConfigYaml: |-
+    apiVersion: config.kueue.x-k8s.io/v1beta1
+    kind: Configuration
+    health:
+      healthProbeBindAddress: :8081
+    metrics:
+      bindAddress: :8443
+    webhook:
+      port: 9443
+    leaderElection:
+      leaderElect: true
+      resourceName: c1f6bfd2.kueue.x-k8s.io
+    controller:
+      groupKindConcurrency:
+        Job.batch: 5
+        LocalQueue.kueue.x-k8s.io: 1
+        ClusterQueue.kueue.x-k8s.io: 1
+        ResourceFlavor.kueue.x-k8s.io: 1
+    clientConnection:
+      qps: 50
+      burst: 100
+    manageJobsWithoutQueueName: false
+    managedJobsNamespaceSelector:
+      matchExpressions:
+        - key: foundry.io/project
+          operator: Exists
+    integrations:
+      frameworks:
+        - "batch/job"
