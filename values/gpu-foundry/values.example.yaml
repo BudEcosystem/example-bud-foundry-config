@@ -32,6 +32,12 @@ api:
   # and never changed afterwards. internal-a: one enterprise whose tenants trust each other.
   # csp-b (the chart's default): tenants that do not trust each other.
   tenancyProfile: internal-a
+  # The currency every price, budget and invoice is recorded in: an ISO 4217 code with two
+  # decimal places (USD, EUR, GBP, INR, ...). Unset, it is GBP. Choose it before the first price
+  # is approved: amounts are never converted, and foundry-api refuses to start when an approved
+  # price is in another currency.
+  rateCard:
+    currency: USD
   # This cluster as GPU Foundry's one cell. It must match controller.cells. Name it for the
   # cluster (letters, digits and hyphens): it's hard to rename once projects exist.
   # telemetryUrl (DCGM exporter) and metricsUrl (Prometheus) are optional; add them where the

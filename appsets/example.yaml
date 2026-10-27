@@ -117,7 +117,7 @@ spec:
             namespace: gpu-foundry
             repoURL: registry.bud.studio/charts
             chart: gpu-foundry
-            targetRevision: "0.5.4-rc.4"
+            targetRevision: "0.5.4-rc.5"
             valueFiles:
               - "$values/values/gpu-foundry/values.budruntime.yaml"
               - "$values/values/gpu-foundry/values.minimal.yaml"
