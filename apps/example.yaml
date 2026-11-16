@@ -1,4 +1,3 @@
-# Illustrative output from budctl. Do not apply this file as-is.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

@@ -1,5 +1,3 @@
-# Illustrative self-signed output from templates/appset.yaml.tmpl.
-# budctl replaces the repository, domain, values, and SOPS secret files.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
