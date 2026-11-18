@@ -19,7 +19,7 @@ appsets/
 values/
 ├── argocd/          # common ArgoCD scheduling values
 ├── bud/             # illustrative generated public Bud overlay
-├── cert-manager/    # common, self-signed, ACME, and internal-CA profiles
+├── cert-manager/    # common and self-signed CA profiles
 ├── clickhouse/      # Bud databases and operator scheduling
 ├── dapr/            # Dapr control-plane profile
 ├── kafka/           # Bud user and operator scheduling
@@ -30,13 +30,11 @@ values/
 ├── postgres/        # Bud service databases and poolers
 ├── seaweedfs/       # Bud buckets and S3 policy
 └── valkey/          # replication, persistence, keyspace notifications, OpenShift
-templates/
-└── appset.yaml.tmpl  # canonical component inventory and ApplicationSet
 ```
 
 The `example` files are documentation, not installation input. They use a
-non-functional repository URL and include every generated public overlay while
-deliberately omitting secret files. During an installation, budctl generates:
+non-functional repository URL and include every generated public overlay, with
+empty placeholders in place of the secret files. During an installation, budctl generates:
 
 - `apps/<environment>.yaml` and `appsets/<environment>.yaml`;
 - `values/<component>/values.<environment>.yaml`;
@@ -76,7 +74,7 @@ budctl install --plan --no-prompt \
   --admin-email admin@example.com
 ```
 
-The installer copies only its explicit allow-list of shared files and renders
-`templates/appset.yaml.tmpl` into the target repository. Adding a customer
-overlay—or the illustrative `example` files—does not make budctl distribute it.
+The installer copies only its explicit allow-list of shared files into the
+target repository. Adding a customer overlay—or the illustrative `example`
+files—does not make budctl distribute it.
 
