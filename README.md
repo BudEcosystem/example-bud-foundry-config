@@ -26,9 +26,10 @@ values/
 ├── keycloak/        # realm/client baseline and Bud theme
 ├── kyverno/         # private-CA injection and controller scheduling
 ├── mongodb/         # Bud/Novu database baseline
+├── opensandbox/     # OpenShift overrides
 ├── postgres/        # Bud service databases and poolers
 ├── seaweedfs/       # Bud buckets and S3 policy
-└── valkey/           # replication, persistence and keyspace notifications
+└── valkey/          # replication, persistence, keyspace notifications, OpenShift
 templates/
 └── appset.yaml.tmpl  # canonical component inventory and ApplicationSet
 ```
