@@ -108,6 +108,12 @@ spec:
             valueFiles:
               - "$values/values/bud/values.example.yaml"
               - "$values/values/bud/secrets.example.yaml"
+          - name: opensandbox
+            namespace: opensandbox-system
+            repoURL: registry.bud.studio/charts
+            chart: opensandbox
+            targetRevision: "0.0.3"
+            valueFiles: []
   template:
     metadata:
       name: "bud-{{.name}}"
