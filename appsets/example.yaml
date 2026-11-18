@@ -106,6 +106,7 @@ spec:
             chart: bud
             targetRevision: "1.4.0-next"
             valueFiles:
+              - "example.minimal.yaml"
               - "$values/values/bud/values.example.yaml"
               - "$values/values/bud/secrets.example.yaml"
           - name: opensandbox
@@ -113,7 +114,8 @@ spec:
             repoURL: registry.bud.studio/charts
             chart: opensandbox
             targetRevision: "0.0.3"
-            valueFiles: []
+            valueFiles:
+              - "example.minimal.yaml"
   template:
     metadata:
       name: "bud-{{.name}}"
